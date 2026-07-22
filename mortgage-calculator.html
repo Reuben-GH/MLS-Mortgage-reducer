@@ -1,0 +1,2183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>My Life Sorted — Mortgage Reduction Calculator</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+/* ── Reset & base ─────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-size: 15px; line-height: 1.5; color: #1a2e0f;
+  background: #f4f8f0; min-height: 100vh;
+}
+
+/* ── Colour tokens ────────────────────────────────────── */
+:root {
+  --g900: #27500A; --g800: #3B6D11; --g600: #639922;
+  --g400: #97C459; --g50:  #EAF3DE;
+  --white: #ffffff; --border: #c8ddb0; --muted: #6b8a52;
+  --danger: #c0392b; --text: #1a2e0f; --text-light: #4a6337;
+}
+
+/* ── Header ───────────────────────────────────────────── */
+header {
+  background: var(--g900); color: var(--white);
+  padding: 0 24px; display: flex; align-items: center;
+  height: 60px; gap: 14px; position: sticky; top: 0; z-index: 100;
+  box-shadow: 0 2px 8px rgba(0,0,0,.25);
+}
+.logo-badge {
+  width: 38px; height: 38px; border-radius: 8px;
+  background: var(--g600); display: flex; align-items: center;
+  justify-content: center; font-weight: 700; font-size: 14px;
+  letter-spacing: .5px; flex-shrink: 0;
+}
+.header-title { font-size: 17px; font-weight: 600; letter-spacing: -.2px; }
+.header-sub   { font-size: 12px; color: var(--g400); margin-top: 1px; }
+
+/* ── Tab bar ──────────────────────────────────────────── */
+.tab-bar {
+  background: var(--g800); display: flex; overflow-x: auto;
+  padding: 0 16px; gap: 2px; scrollbar-width: none;
+}
+.tab-bar::-webkit-scrollbar { display: none; }
+.tab-btn {
+  background: none; border: none; color: #b8d4a0; cursor: pointer;
+  padding: 0 18px; height: 44px; font-size: 13.5px; font-weight: 500;
+  white-space: nowrap; border-bottom: 3px solid transparent;
+  transition: color .15s, border-color .15s;
+}
+.tab-btn:hover  { color: var(--white); }
+.tab-btn.active { color: var(--white); border-bottom-color: var(--g400); }
+
+/* ── Main layout ──────────────────────────────────────── */
+main { max-width: 1100px; margin: 0 auto; padding: 24px 16px 60px; }
+.tab-panel { display: none; }
+.tab-panel.active { display: block; }
+
+/* ── Cards & sections ────────────────────────────────── */
+.card {
+  background: var(--white); border: 1px solid var(--border);
+  border-radius: 10px; padding: 20px 24px; margin-bottom: 16px;
+}
+.card-title {
+  font-size: 14px; font-weight: 600; color: var(--g900);
+  text-transform: uppercase; letter-spacing: .6px;
+  margin-bottom: 16px; padding-bottom: 10px;
+  border-bottom: 2px solid var(--g50);
+}
+
+/* ── Form grid ────────────────────────────────────────── */
+.form-grid { display: grid; gap: 14px; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); }
+.form-grid-2 { grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); }
+.form-group { display: flex; flex-direction: column; gap: 5px; }
+.form-group label { font-size: 12.5px; font-weight: 500; color: var(--text-light); }
+.form-group input, .form-group select {
+  height: 38px; padding: 0 10px; border: 1px solid var(--border);
+  border-radius: 6px; font-size: 14px; color: var(--text);
+  background: var(--white); transition: border-color .15s, box-shadow .15s;
+}
+.form-group input:focus, .form-group select:focus {
+  outline: none; border-color: var(--g600);
+  box-shadow: 0 0 0 3px rgba(99,153,34,.15);
+}
+.form-group input:disabled, .form-group select:disabled {
+  background: #f5f5f5; color: #aaa; cursor: not-allowed;
+}
+.input-prefix { position: relative; }
+.input-prefix span {
+  position: absolute; left: 10px; top: 50%; transform: translateY(-50%);
+  color: var(--muted); font-size: 13px; pointer-events: none;
+}
+.input-prefix input { padding-left: 22px; }
+.input-suffix { position: relative; }
+.input-suffix span {
+  position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
+  color: var(--muted); font-size: 13px; pointer-events: none;
+}
+.input-suffix input { padding-right: 28px; }
+
+/* ── Loan type selector ───────────────────────────────── */
+.loan-type-grid {
+  display: grid; grid-template-columns: repeat(4, 1fr);
+  gap: 10px; margin-bottom: 20px;
+}
+.loan-type-btn {
+  border: 2px solid var(--border); border-radius: 8px;
+  padding: 12px 8px; cursor: pointer; background: var(--white);
+  text-align: center; transition: all .15s; font-size: 13px;
+  font-weight: 500; color: var(--text-light);
+}
+.loan-type-btn:hover { border-color: var(--g600); color: var(--g800); }
+.loan-type-btn.active {
+  border-color: var(--g600); background: var(--g50);
+  color: var(--g900); font-weight: 600;
+}
+.loan-type-btn .type-icon { font-size: 20px; display: block; margin-bottom: 4px; }
+
+/* ── Strategy toggle rows ────────────────────────────── */
+.strategy-card {
+  background: var(--white); border: 1px solid var(--border);
+  border-radius: 10px; margin-bottom: 12px; overflow: hidden;
+}
+.strategy-header {
+  display: flex; align-items: center; gap: 12px;
+  padding: 14px 18px; cursor: pointer; user-select: none;
+}
+.strategy-header:hover { background: #fafefa; }
+.strategy-toggle {
+  width: 40px; height: 22px; border-radius: 11px;
+  background: #ccc; position: relative; flex-shrink: 0;
+  transition: background .2s; cursor: pointer;
+}
+.strategy-toggle::after {
+  content: ''; position: absolute; width: 18px; height: 18px;
+  border-radius: 9px; background: var(--white);
+  top: 2px; left: 2px; transition: left .2s;
+  box-shadow: 0 1px 3px rgba(0,0,0,.2);
+}
+.strategy-toggle.on { background: var(--g600); }
+.strategy-toggle.on::after { left: 20px; }
+.strategy-label { font-weight: 600; font-size: 14px; flex: 1; }
+.strategy-badge {
+  font-size: 11px; padding: 2px 8px; border-radius: 10px;
+  background: var(--g50); color: var(--g800); font-weight: 500;
+}
+.strategy-body { padding: 4px 18px 18px; border-top: 1px solid var(--g50); }
+.strategy-body.hidden { display: none; }
+
+/* ── Lump sum / rate events list ─────────────────────── */
+.list-items { display: flex; flex-direction: column; gap: 8px; margin-bottom: 10px; }
+.list-item {
+  display: flex; align-items: center; gap: 10px;
+  background: var(--g50); border-radius: 6px; padding: 8px 12px;
+}
+.list-item input {
+  height: 34px; padding: 0 8px; border: 1px solid var(--border);
+  border-radius: 5px; font-size: 13px; background: var(--white); flex: 1;
+}
+.list-item input:focus { outline: none; border-color: var(--g600); }
+.list-item label { font-size: 12px; color: var(--muted); white-space: nowrap; }
+.btn-remove {
+  background: none; border: none; color: var(--danger);
+  cursor: pointer; font-size: 18px; line-height: 1;
+  padding: 0 4px; flex-shrink: 0;
+}
+.btn-add {
+  background: none; border: 1px dashed var(--g600); color: var(--g800);
+  border-radius: 6px; padding: 7px 14px; font-size: 13px; cursor: pointer;
+  font-weight: 500; transition: background .15s;
+}
+.btn-add:hover { background: var(--g50); }
+
+/* ── Buttons ──────────────────────────────────────────── */
+.btn-primary {
+  background: var(--g600); color: var(--white);
+  border: none; border-radius: 7px; padding: 11px 28px;
+  font-size: 14px; font-weight: 600; cursor: pointer;
+  transition: background .15s; letter-spacing: .2px;
+}
+.btn-primary:hover { background: var(--g800); }
+.btn-secondary {
+  background: var(--white); color: var(--g800);
+  border: 1px solid var(--g600); border-radius: 7px;
+  padding: 10px 22px; font-size: 13.5px; font-weight: 500;
+  cursor: pointer; transition: background .15s;
+}
+.btn-secondary:hover { background: var(--g50); }
+.calc-bar {
+  display: flex; align-items: center; gap: 12px;
+  flex-wrap: wrap; padding-top: 8px;
+}
+.calc-bar-note { font-size: 12px; color: var(--muted); }
+
+/* ── Results ──────────────────────────────────────────── */
+.metric-grid {
+  display: grid; gap: 14px;
+  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  margin-bottom: 20px;
+}
+.metric-card {
+  background: var(--white); border: 1px solid var(--border);
+  border-radius: 10px; padding: 18px 20px;
+}
+.metric-label { font-size: 12px; color: var(--muted); font-weight: 500; text-transform: uppercase; letter-spacing: .5px; margin-bottom: 6px; }
+.metric-value { font-size: 26px; font-weight: 700; color: var(--g900); line-height: 1.1; }
+.metric-sub   { font-size: 12px; color: var(--muted); margin-top: 4px; }
+.metric-card.highlight { background: var(--g50); border-color: var(--g400); }
+.metric-card.highlight .metric-value { color: var(--g800); }
+
+.chart-wrap { background: var(--white); border: 1px solid var(--border); border-radius: 10px; padding: 20px; margin-bottom: 16px; }
+.chart-title { font-size: 13px; font-weight: 600; color: var(--g900); margin-bottom: 14px; }
+.chart-canvas-wrap { position: relative; height: 260px; }
+
+.placeholder-msg {
+  display: flex; flex-direction: column; align-items: center;
+  justify-content: center; min-height: 200px; color: var(--muted);
+  gap: 10px; text-align: center;
+}
+.placeholder-msg svg { opacity: .3; }
+.placeholder-msg p { font-size: 14px; }
+.placeholder-msg small { font-size: 12px; }
+
+/* ── Schedule tab ─────────────────────────────────────── */
+.toggle-row {
+  display: flex; gap: 4px; background: var(--g50);
+  border-radius: 7px; padding: 4px; width: fit-content; margin-bottom: 16px;
+}
+.toggle-opt {
+  padding: 6px 16px; border-radius: 5px; cursor: pointer;
+  font-size: 13px; font-weight: 500; color: var(--text-light);
+  background: none; border: none; transition: all .15s;
+}
+.toggle-opt.active { background: var(--white); color: var(--g900); box-shadow: 0 1px 3px rgba(0,0,0,.1); }
+
+.schedule-table-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+thead th {
+  background: var(--g900); color: var(--white);
+  padding: 10px 14px; text-align: right; font-weight: 600;
+  font-size: 12px; text-transform: uppercase; letter-spacing: .4px;
+  white-space: nowrap;
+}
+thead th:first-child { text-align: left; }
+tbody tr:nth-child(even) { background: var(--g50); }
+tbody td {
+  padding: 8px 14px; text-align: right; border-bottom: 1px solid var(--border);
+  font-variant-numeric: tabular-nums;
+}
+tbody td:first-child { text-align: left; font-weight: 500; }
+tfoot td { padding: 10px 14px; font-weight: 700; text-align: right; background: #eef5e8; border-top: 2px solid var(--g400); }
+tfoot td:first-child { text-align: left; }
+
+/* ── Investment tab ───────────────────────────────────── */
+.investment-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+@media (max-width: 700px) { .investment-grid { grid-template-columns: 1fr; } }
+.invest-section {
+  border: 1px solid var(--border); border-radius: 10px; overflow: hidden;
+}
+.invest-header {
+  display: flex; align-items: center; gap: 10px;
+  padding: 14px 18px; background: var(--g50);
+  cursor: pointer; user-select: none;
+}
+.invest-body { padding: 16px 18px; }
+.invest-body.hidden { display: none; }
+
+/* ── Refinance & rate sensitivity result sections ─────── */
+.result-section { margin-bottom: 16px; }
+.result-section-title {
+  font-size: 14px; font-weight: 700; color: var(--g900);
+  margin: 20px 0 12px; padding-bottom: 8px;
+  border-bottom: 2px solid var(--g50);
+}
+.breakdown-table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 10px; }
+.breakdown-table td { padding: 7px 12px; border-bottom: 1px solid var(--border); }
+.breakdown-table td:last-child { text-align: right; font-weight: 500; }
+
+/* ── Inline section dividers ──────────────────────────── */
+.section-divider {
+  font-size: 12px; font-weight: 600; color: var(--muted);
+  text-transform: uppercase; letter-spacing: .6px;
+  margin: 18px 0 10px; padding-bottom: 6px;
+  border-bottom: 1px solid var(--border);
+}
+
+/* ── Responsive ───────────────────────────────────────── */
+@media (max-width: 600px) {
+  header { padding: 0 14px; }
+  main   { padding: 16px 12px 60px; }
+  .loan-type-grid { grid-template-columns: repeat(2, 1fr); }
+  .metric-value { font-size: 22px; }
+}
+
+/* ── IO field groups ──────────────────────────────────── */
+.loan-fields { display: none; }
+.loan-fields.active { display: block; }
+
+/* ── Util ─────────────────────────────────────────────── */
+.mt8  { margin-top: 8px; }
+.mt16 { margin-top: 16px; }
+.hidden { display: none !important; }
+.text-success { color: var(--g800); font-weight: 600; }
+.text-danger  { color: var(--danger); font-weight: 600; }
+</style>
+</head>
+<body>
+
+<!-- ═══ HEADER ═══════════════════════════════════════════ -->
+<header>
+  <div class="logo-badge">MLS</div>
+  <div>
+    <div class="header-title">My Life Sorted</div>
+    <div class="header-sub">Mortgage Reduction Calculator</div>
+  </div>
+</header>
+
+<!-- ═══ TAB BAR ══════════════════════════════════════════ -->
+<div class="tab-bar" role="tablist">
+  <button class="tab-btn active" data-tab="setup"      role="tab">Loan Setup</button>
+  <button class="tab-btn"        data-tab="strategies" role="tab">Strategies</button>
+  <button class="tab-btn"        data-tab="results"    role="tab">Results</button>
+  <button class="tab-btn"        data-tab="schedule"   role="tab">Schedule</button>
+  <button class="tab-btn"        data-tab="investment" role="tab">Investment</button>
+</div>
+
+<main>
+
+<!-- ═══════════════════════════════════════════════════════
+     TAB 1 — LOAN SETUP
+═══════════════════════════════════════════════════════════ -->
+<div id="tab-setup" class="tab-panel active">
+
+  <!-- Loan type selector -->
+  <div class="card">
+    <div class="card-title">Loan Type</div>
+    <div class="loan-type-grid">
+      <button class="loan-type-btn active" data-type="pi">
+        <span class="type-icon">🏠</span>Principal &amp; Interest
+      </button>
+      <button class="loan-type-btn" data-type="io">
+        <span class="type-icon">⏱</span>Interest Only
+      </button>
+      <button class="loan-type-btn" data-type="split">
+        <span class="type-icon">⚖️</span>Split Loan
+      </button>
+      <button class="loan-type-btn" data-type="loc">
+        <span class="type-icon">💳</span>Line of Credit
+      </button>
+    </div>
+
+    <!-- P&I fields -->
+    <div id="fields-pi" class="loan-fields active">
+      <div class="form-grid">
+        <div class="form-group">
+          <label>Loan Balance</label>
+          <div class="input-prefix"><span>$</span>
+            <input type="number" id="pi-balance" value="600000" min="0" step="1000">
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Annual Interest Rate</label>
+          <div class="input-suffix"><span>%</span>
+            <input type="number" id="pi-rate" value="6.25" min="0" max="30" step="0.05">
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Loan Term</label>
+          <div class="input-suffix"><span>yrs</span>
+            <input type="number" id="pi-term" value="30" min="1" max="40" step="1">
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Years Elapsed</label>
+          <div class="input-suffix"><span>yrs</span>
+            <input type="number" id="pi-elapsed" value="0" min="0" max="40" step="1">
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Repayment Frequency</label>
+          <select id="pi-frequency">
+            <option value="monthly" selected>Monthly</option>
+            <option value="fortnightly">Fortnightly</option>
+            <option value="weekly">Weekly</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <!-- IO fields -->
+    <div id="fields-io" class="loan-fields">
+      <div class="form-grid">
+        <div class="form-group">
+          <label>Loan Balance</label>
+          <div class="input-prefix"><span>$</span>
+            <input type="number" id="io-balance" value="500000" min="0" step="1000">
+          </div>
+        </div>
+        <div class="form-group">
+          <label>IO Interest Rate</label>
+          <div class="input-suffix"><span>%</span>
+            <input type="number" id="io-rate" value="6.75" min="0" max="30" step="0.05">
+          </div>
+        </div>
+        <div class="form-group">
+          <label>IO Period</label>
+          <div class="input-suffix"><span>yrs</span>
+            <input type="number" id="io-period" value="5" min="1" max="20" step="1">
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Revert P&amp;I Rate</label>
+          <div class="input-suffix"><span>%</span>
+            <input type="number" id="io-revert-rate" value="6.50" min="0" max="30" step="0.05">
+          </div>
+        </div>
+        <div class="form-group">
+          <label>P&amp;I Term After IO</label>
+          <div class="input-suffix"><span>yrs</span>
+            <input type="number" id="io-pi-term" value="25" min="1" max="40" step="1">
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Split loan fields -->
+    <div id="fields-split" class="loan-fields">
+      <div class="section-divider">P&amp;I Portion</div>
+      <div class="form-grid">
+        <div class="form-group">
+          <label>P&amp;I Balance</label>
+          <div class="input-prefix"><span>$</span>
+            <input type="number" id="split-pi-balance" value="400000" min="0" step="1000">
+          </div>
+        </div>
+        <div class="form-group">
+          <label>P&amp;I Rate</label>
+          <div class="input-suffix"><span>%</span>
+            <input type="number" id="split-pi-rate" value="6.25" min="0" max="30" step="0.05">
+          </div>
+        </div>
+        <div class="form-group">
+          <label>P&amp;I Term</label>
+          <div class="input-suffix"><span>yrs</span>
+            <input type="number" id="split-pi-term" value="30" min="1" max="40" step="1">
+          </div>
+        </div>
+      </div>
+      <div class="section-divider mt16">IO Portion</div>
+      <div class="form-grid">
+        <div class="form-group">
+          <label>IO Balance</label>
+          <div class="input-prefix"><span>$</span>
+            <input type="number" id="split-io-balance" value="200000" min="0" step="1000">
+          </div>
+        </div>
+        <div class="form-group">
+          <label>IO Rate</label>
+          <div class="input-suffix"><span>%</span>
+            <input type="number" id="split-io-rate" value="6.75" min="0" max="30" step="0.05">
+          </div>
+        </div>
+        <div class="form-group">
+          <label>IO Period</label>
+          <div class="input-suffix"><span>yrs</span>
+            <input type="number" id="split-io-period" value="5" min="1" max="20" step="1">
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Revert P&amp;I Rate</label>
+          <div class="input-suffix"><span>%</span>
+            <input type="number" id="split-io-revert" value="6.50" min="0" max="30" step="0.05">
+          </div>
+        </div>
+        <div class="form-group">
+          <label>P&amp;I Term After IO</label>
+          <div class="input-suffix"><span>yrs</span>
+            <input type="number" id="split-io-pi-term" value="25" min="1" max="40" step="1">
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Line of Credit fields -->
+    <div id="fields-loc" class="loan-fields">
+      <div class="form-grid">
+        <div class="form-group">
+          <label>Credit Balance</label>
+          <div class="input-prefix"><span>$</span>
+            <input type="number" id="loc-balance" value="600000" min="0" step="1000">
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Annual Interest Rate</label>
+          <div class="input-suffix"><span>%</span>
+            <input type="number" id="loc-rate" value="6.25" min="0" max="30" step="0.05">
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Built-in Offset Balance</label>
+          <div class="input-prefix"><span>$</span>
+            <input type="number" id="loc-offset" value="0" min="0" step="1000">
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Loan Term</label>
+          <div class="input-suffix"><span>yrs</span>
+            <input type="number" id="loc-term" value="30" min="1" max="40" step="1">
+          </div>
+        </div>
+      </div>
+    </div>
+  </div><!-- /loan type card -->
+
+  <!-- Rate change events -->
+  <div class="card">
+    <div class="card-title">Rate Change Events <span style="font-weight:400;color:var(--muted);font-size:12px;text-transform:none">(optional)</span></div>
+    <div id="rate-events-list" class="list-items"></div>
+    <button class="btn-add" id="add-rate-event">+ Add Rate Change Event</button>
+  </div>
+
+  <!-- Calculate -->
+  <div class="calc-bar">
+    <button class="btn-primary" id="btn-calculate">Calculate</button>
+    <span class="calc-bar-note">Results appear in the Results tab</span>
+  </div>
+
+</div><!-- /tab-setup -->
+
+
+<!-- ═══════════════════════════════════════════════════════
+     TAB 2 — STRATEGIES
+═══════════════════════════════════════════════════════════ -->
+<div id="tab-strategies" class="tab-panel">
+
+  <div style="font-size:13px;color:var(--muted);margin-bottom:14px;">
+    Toggle strategies on or off, then click Calculate (or use the button below).
+    All active strategies are combined in the Results tab.
+  </div>
+
+  <!-- 1. Extra repayments -->
+  <div class="strategy-card">
+    <div class="strategy-header" data-strategy="extra">
+      <div class="strategy-toggle on" id="toggle-extra"></div>
+      <div class="strategy-label">Extra Regular Repayments</div>
+      <div class="strategy-badge">Primary</div>
+    </div>
+    <div class="strategy-body" id="body-extra">
+      <div class="form-grid mt8">
+        <div class="form-group">
+          <label>Extra Amount</label>
+          <div class="input-prefix"><span>$</span>
+            <input type="number" id="extra-amount" value="500" min="0" step="50">
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Frequency</label>
+          <select id="extra-frequency">
+            <option value="monthly" selected>Monthly</option>
+            <option value="fortnightly">Fortnightly</option>
+            <option value="weekly">Weekly</option>
+          </select>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 2. Offset account -->
+  <div class="strategy-card">
+    <div class="strategy-header" data-strategy="offset">
+      <div class="strategy-toggle on" id="toggle-offset"></div>
+      <div class="strategy-label">Offset Account</div>
+      <div class="strategy-badge">Primary</div>
+    </div>
+    <div class="strategy-body" id="body-offset">
+      <div class="form-grid mt8">
+        <div class="form-group">
+          <label>Starting Balance</label>
+          <div class="input-prefix"><span>$</span>
+            <input type="number" id="offset-start" value="30000" min="0" step="1000">
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Monthly Growth</label>
+          <div class="input-prefix"><span>$</span>
+            <input type="number" id="offset-growth" value="500" min="0" step="100">
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 3. Fortnightly -->
+  <div class="strategy-card">
+    <div class="strategy-header" data-strategy="fortnightly">
+      <div class="strategy-toggle on" id="toggle-fortnightly"></div>
+      <div class="strategy-label">Fortnightly Repayments</div>
+      <div class="strategy-badge">Primary</div>
+    </div>
+    <div class="strategy-body" id="body-fortnightly">
+      <p style="font-size:13px;color:var(--muted);margin-top:8px;">
+        Uses the <strong>half-monthly method</strong>: pays monthly÷2 every fortnight,
+        making 13 full monthly payments per year. Only available when base frequency is monthly.
+      </p>
+    </div>
+  </div>
+
+  <!-- 4. Lump sums -->
+  <div class="strategy-card">
+    <div class="strategy-header" data-strategy="lump">
+      <div class="strategy-toggle on" id="toggle-lump"></div>
+      <div class="strategy-label">Lump Sum Injections</div>
+      <div class="strategy-badge">Primary</div>
+    </div>
+    <div class="strategy-body" id="body-lump">
+      <div id="lump-list" class="list-items mt8"></div>
+      <button class="btn-add" id="add-lump">+ Add Lump Sum</button>
+    </div>
+  </div>
+
+  <!-- 5. Salary crediting -->
+  <div class="strategy-card">
+    <div class="strategy-header" data-strategy="salary">
+      <div class="strategy-toggle" id="toggle-salary"></div>
+      <div class="strategy-label">Salary Crediting to Offset</div>
+      <div class="strategy-badge" style="background:#f0f4e8;">Optional</div>
+    </div>
+    <div class="strategy-body hidden" id="body-salary">
+      <div class="form-grid mt8">
+        <div class="form-group">
+          <label>Monthly Net Salary</label>
+          <div class="input-prefix"><span>$</span>
+            <input type="number" id="salary-amount" value="8000" min="0" step="500">
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Average Days Parked</label>
+          <div class="input-suffix"><span>days</span>
+            <input type="number" id="salary-days" value="15" min="1" max="30" step="1">
+          </div>
+        </div>
+      </div>
+      <p style="font-size:12px;color:var(--muted);margin-top:8px;">
+        Average offset contribution = salary × (days ÷ 30). Added to starting offset balance.
+      </p>
+    </div>
+  </div>
+
+  <!-- 6. Refinance -->
+  <div class="strategy-card">
+    <div class="strategy-header" data-strategy="refinance">
+      <div class="strategy-toggle" id="toggle-refinance"></div>
+      <div class="strategy-label">Refinance Scenario</div>
+      <div class="strategy-badge" style="background:#f0f4e8;">Optional</div>
+    </div>
+    <div class="strategy-body hidden" id="body-refinance">
+      <div class="form-grid mt8 form-grid-2">
+        <div class="form-group">
+          <label>New Interest Rate</label>
+          <div class="input-suffix"><span>%</span>
+            <input type="number" id="refi-rate" value="5.75" min="0" max="30" step="0.05">
+          </div>
+        </div>
+        <div class="form-group">
+          <label>New Loan Term</label>
+          <div class="input-suffix"><span>yrs</span>
+            <input type="number" id="refi-term" value="30" min="1" max="40" step="1">
+          </div>
+        </div>
+      </div>
+      <div class="section-divider mt16">Switch Costs</div>
+      <div class="form-grid mt8">
+        <div class="form-group">
+          <label>Discharge Fee</label>
+          <div class="input-prefix"><span>$</span>
+            <input type="number" id="refi-discharge" value="300" min="0" step="50">
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Establishment Fee</label>
+          <div class="input-prefix"><span>$</span>
+            <input type="number" id="refi-establish" value="600" min="0" step="50">
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Break Cost</label>
+          <div class="input-prefix"><span>$</span>
+            <input type="number" id="refi-break" value="0" min="0" step="100">
+          </div>
+        </div>
+        <div class="form-group">
+          <label>LMI</label>
+          <div class="input-prefix"><span>$</span>
+            <input type="number" id="refi-lmi" value="0" min="0" step="100">
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 7. Rate sensitivity -->
+  <div class="strategy-card">
+    <div class="strategy-header" data-strategy="ratesens">
+      <div class="strategy-toggle" id="toggle-ratesens"></div>
+      <div class="strategy-label">Rate Sensitivity Analysis</div>
+      <div class="strategy-badge" style="background:#f0f4e8;">Optional</div>
+    </div>
+    <div class="strategy-body hidden" id="body-ratesens">
+      <div class="form-grid mt8 form-grid-2">
+        <div class="form-group">
+          <label>Rate Hike Scenario</label>
+          <div class="input-suffix"><span>% p.a.</span>
+            <input type="number" id="sens-hike" value="1.00" min="0.01" max="5" step="0.25">
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Rate Cut Scenario</label>
+          <div class="input-suffix"><span>% p.a.</span>
+            <input type="number" id="sens-cut" value="1.00" min="0.01" max="5" step="0.25">
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="calc-bar mt16">
+    <button class="btn-primary" id="btn-run-all">Run All Scenarios &amp; View Results</button>
+    <button class="btn-secondary" id="btn-calculate-2">Calculate</button>
+  </div>
+
+</div><!-- /tab-strategies -->
+
+
+<!-- ═══════════════════════════════════════════════════════
+     TAB 3 — RESULTS
+═══════════════════════════════════════════════════════════ -->
+<div id="tab-results" class="tab-panel">
+
+  <!-- Headline metrics -->
+  <div class="metric-grid" id="metrics-grid">
+    <div class="metric-card">
+      <div class="metric-label">Min Repayment</div>
+      <div class="metric-value" id="m-repayment">—</div>
+      <div class="metric-sub" id="m-repayment-sub">per month</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">Total Interest (Base)</div>
+      <div class="metric-value" id="m-total-interest">—</div>
+      <div class="metric-sub">without strategies</div>
+    </div>
+    <div class="metric-card highlight">
+      <div class="metric-label">Interest Saved</div>
+      <div class="metric-value" id="m-interest-saved">—</div>
+      <div class="metric-sub">with active strategies</div>
+    </div>
+    <div class="metric-card highlight">
+      <div class="metric-label">Loan-Free Date</div>
+      <div class="metric-value" id="m-loan-free">—</div>
+      <div class="metric-sub" id="m-loan-free-sub">with strategies</div>
+    </div>
+  </div>
+
+  <!-- Balance over time chart -->
+  <div class="chart-wrap">
+    <div class="chart-title">Balance Over Time</div>
+    <div class="chart-canvas-wrap">
+      <canvas id="chart-balance"></canvas>
+    </div>
+    <div id="placeholder-balance" class="placeholder-msg">
+      <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+      <p>Run a calculation to see balance projection</p>
+    </div>
+  </div>
+
+  <!-- Strategy savings breakdown -->
+  <div class="chart-wrap">
+    <div class="chart-title">Strategy Savings Breakdown</div>
+    <div class="chart-canvas-wrap">
+      <canvas id="chart-breakdown"></canvas>
+    </div>
+    <div id="placeholder-breakdown" class="placeholder-msg">
+      <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/></svg>
+      <p>Enable strategies and calculate to compare savings</p>
+    </div>
+  </div>
+
+  <!-- Annual interest comparison -->
+  <div class="chart-wrap">
+    <div class="chart-title">Annual Interest — First 10 Years</div>
+    <div class="chart-canvas-wrap">
+      <canvas id="chart-annual"></canvas>
+    </div>
+    <div id="placeholder-annual" class="placeholder-msg">
+      <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+      <p>Calculate to see annual interest comparison</p>
+    </div>
+  </div>
+
+  <!-- Refinance results (shown when strategy is active) -->
+  <div id="section-refinance" class="hidden">
+    <div class="result-section-title">Refinance Analysis</div>
+    <div class="metric-grid">
+      <div class="metric-card">
+        <div class="metric-label">New Monthly Payment</div>
+        <div class="metric-value" id="refi-new-payment">—</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">Gross Interest Saving</div>
+        <div class="metric-value text-success" id="refi-gross-saving">—</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">Switch Costs</div>
+        <div class="metric-value" id="refi-switch-costs">—</div>
+      </div>
+      <div class="metric-card highlight">
+        <div class="metric-label">Net Saving</div>
+        <div class="metric-value" id="refi-net-saving">—</div>
+        <div class="metric-sub" id="refi-breakeven-sub">—</div>
+      </div>
+    </div>
+    <div class="chart-wrap">
+      <div class="chart-title">Balance Comparison — Current vs Refinanced</div>
+      <div class="chart-canvas-wrap">
+        <canvas id="chart-refi"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- Rate sensitivity results (shown when strategy is active) -->
+  <div id="section-ratesens" class="hidden">
+    <div class="result-section-title">Rate Sensitivity Analysis</div>
+    <div class="metric-grid">
+      <div class="metric-card">
+        <div class="metric-label" id="sens-hike-label">Rate Hike +1%</div>
+        <div class="metric-value text-danger" id="sens-hike-payment">—</div>
+        <div class="metric-sub" id="sens-hike-sub">new monthly payment</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">Current Rate</div>
+        <div class="metric-value" id="sens-current-payment">—</div>
+        <div class="metric-sub">base monthly payment</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label" id="sens-cut-label">Rate Cut −1%</div>
+        <div class="metric-value text-success" id="sens-cut-new-min">—</div>
+        <div class="metric-sub">new minimum payment</div>
+      </div>
+      <div class="metric-card highlight">
+        <div class="metric-label" id="sens-cut-maintain-label">Retain current repayment</div>
+        <div class="metric-value text-success" id="sens-cut-saving">—</div>
+        <div class="metric-sub" id="sens-cut-sub">interest saved · repaid in —</div>
+      </div>
+    </div>
+    <div class="chart-wrap">
+      <div class="chart-title">Balance Projection — Three Scenarios</div>
+      <div class="chart-canvas-wrap">
+        <canvas id="chart-sens"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- No-results placeholder -->
+  <div id="results-placeholder" class="card">
+    <div class="placeholder-msg" style="min-height:160px;">
+      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2">
+        <circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/>
+      </svg>
+      <p>No results yet</p>
+      <small>Set up your loan and click Calculate</small>
+    </div>
+  </div>
+
+</div><!-- /tab-results -->
+
+
+<!-- ═══════════════════════════════════════════════════════
+     TAB 4 — SCHEDULE
+═══════════════════════════════════════════════════════════ -->
+<div id="tab-schedule" class="tab-panel">
+
+  <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin-bottom:16px;">
+    <div class="toggle-row" id="sched-view-toggle">
+      <button class="toggle-opt active" data-sview="base">Base Loan</button>
+      <button class="toggle-opt"        data-sview="strategies">With Strategies</button>
+    </div>
+    <div class="toggle-row" id="sched-period-toggle">
+      <button class="toggle-opt active" data-speriod="annual">Annual Summary</button>
+      <button class="toggle-opt"        data-speriod="period">Period Detail</button>
+    </div>
+  </div>
+
+  <div id="schedule-placeholder" class="card">
+    <div class="placeholder-msg" style="min-height:160px;">
+      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2">
+        <path d="M3 3h18v4H3z"/><path d="M3 10h18M3 17h18"/><path d="M8 7v14M16 7v14"/>
+      </svg>
+      <p>No schedule yet</p>
+      <small>Calculate a loan to view the amortisation schedule</small>
+    </div>
+  </div>
+
+  <div id="schedule-table-wrap" class="schedule-table-wrap hidden">
+    <table id="schedule-table">
+      <thead id="schedule-thead"></thead>
+      <tbody id="schedule-tbody"></tbody>
+      <tfoot id="schedule-tfoot"></tfoot>
+    </table>
+  </div>
+
+</div><!-- /tab-schedule -->
+
+
+<!-- ═══════════════════════════════════════════════════════
+     TAB 5 — INVESTMENT
+═══════════════════════════════════════════════════════════ -->
+<div id="tab-investment" class="tab-panel">
+
+  <div style="font-size:13px;color:var(--muted);margin-bottom:16px;">
+    Two independent investment scenarios. Enable each to enter details.
+  </div>
+
+  <div class="investment-grid">
+
+    <!-- Investment property -->
+    <div class="invest-section">
+      <div class="invest-header" data-invest="property">
+        <div class="strategy-toggle" id="toggle-property"></div>
+        <div style="font-weight:600;font-size:14px;flex:1;">Investment Property</div>
+      </div>
+      <div class="invest-body hidden" id="body-property">
+        <div class="form-grid">
+          <div class="form-group">
+            <label>Marginal Tax Rate</label>
+            <div class="input-suffix"><span>%</span>
+              <input type="number" id="prop-tax-rate" value="37" min="0" max="50" step="1" disabled>
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Gross Rental Income</label>
+            <div class="input-prefix"><span>$</span>
+              <input type="number" id="prop-rent" value="30000" min="0" step="500" disabled>
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Property Expenses</label>
+            <div class="input-prefix"><span>$</span>
+              <input type="number" id="prop-expenses" value="12000" min="0" step="500" disabled>
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Depreciation Deduction</label>
+            <div class="input-prefix"><span>$</span>
+              <input type="number" id="prop-depreciation" value="8000" min="0" step="500" disabled>
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Investment Loan Interest</label>
+            <div class="input-prefix"><span>$</span>
+              <input type="number" id="prop-interest" value="0" min="0" step="500" disabled>
+            </div>
+          </div>
+        </div>
+        <div class="form-group mt16">
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+            <input type="checkbox" id="prop-redirect" disabled>
+            Redirect tax saving to mortgage
+          </label>
+        </div>
+
+        <!-- Property results -->
+        <div id="prop-results" class="hidden mt16">
+          <div class="section-divider">Results</div>
+          <table class="breakdown-table">
+            <tbody id="prop-results-body"></tbody>
+          </table>
+          <div class="chart-wrap" style="margin-top:14px;padding:16px;">
+            <div class="chart-title">10-Year Gross vs Net Cost</div>
+            <div class="chart-canvas-wrap" style="height:200px;">
+              <canvas id="chart-property"></canvas>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Share portfolio -->
+    <div class="invest-section">
+      <div class="invest-header" data-invest="shares">
+        <div class="strategy-toggle" id="toggle-shares"></div>
+        <div style="font-weight:600;font-size:14px;flex:1;">Share Portfolio</div>
+      </div>
+      <div class="invest-body hidden" id="body-shares">
+        <div class="form-grid">
+          <div class="form-group">
+            <label>Marginal Tax Rate</label>
+            <div class="input-suffix"><span>%</span>
+              <input type="number" id="shares-tax-rate" value="37" min="0" max="50" step="1" disabled>
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Portfolio Value</label>
+            <div class="input-prefix"><span>$</span>
+              <input type="number" id="shares-value" value="500000" min="0" step="5000" disabled>
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Expected Total Return</label>
+            <div class="input-suffix"><span>% p.a.</span>
+              <input type="number" id="shares-return" value="8" min="0" max="30" step="0.5" disabled>
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Income Yield</label>
+            <div class="input-suffix"><span>% p.a.</span>
+              <input type="number" id="shares-yield" value="4" min="0" max="20" step="0.25" disabled>
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Franking Credit Rate</label>
+            <div class="input-suffix"><span>%</span>
+              <input type="number" id="shares-franking" value="100" min="0" max="100" step="10" disabled>
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Margin Loan Rate</label>
+            <div class="input-suffix"><span>% p.a.</span>
+              <input type="number" id="shares-margin-rate" value="0" min="0" max="20" step="0.25" disabled>
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Margin Loan Balance</label>
+            <div class="input-prefix"><span>$</span>
+              <input type="number" id="shares-margin-bal" value="0" min="0" step="1000" disabled>
+            </div>
+          </div>
+        </div>
+        <div class="form-group mt16">
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+            <input type="checkbox" id="shares-redirect" disabled>
+            Redirect dividends to mortgage
+          </label>
+        </div>
+
+        <!-- Shares results -->
+        <div id="shares-results" class="hidden mt16">
+          <div class="section-divider">Results</div>
+          <table class="breakdown-table">
+            <tbody id="shares-results-body"></tbody>
+          </table>
+          <div class="chart-wrap" style="margin-top:14px;padding:16px;">
+            <div class="chart-title">10-Year Portfolio Value &amp; Cumulative Dividends</div>
+            <div class="chart-canvas-wrap" style="height:200px;">
+              <canvas id="chart-shares"></canvas>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /investment-grid -->
+
+  <div class="calc-bar mt16">
+    <button class="btn-primary" id="btn-invest-calc">Calculate Investment</button>
+  </div>
+
+</div><!-- /tab-investment -->
+
+</main><!-- /main -->
+
+<script>
+'use strict';
+
+// ═══════════════════════════════════════════════════════════
+// CALCULATION ENGINE (mirrors tests.js)
+// ═══════════════════════════════════════════════════════════
+
+function calcMinPayment(balance, annualRate, termMonths) {
+  const r = annualRate / 12;
+  if (r === 0) return balance / termMonths;
+  return balance * r / (1 - Math.pow(1 + r, -termMonths));
+}
+
+// ── Calendar-day helpers for ACT/365 daily-accrual interest ─────────
+// Interest accrues daily on the outstanding balance (annual rate ÷ 365)
+// using the actual number of days in each calendar month, then is
+// charged at that month's repayment — this is how Australian lenders
+// calculate interest, not a flat rate/12 per month. All date math uses
+// UTC to avoid DST-related day-count anomalies.
+function toUTCDateOnly(date) {
+  return new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+}
+function addMonthsUTC(date, n) {
+  const y = date.getUTCFullYear();
+  const m = date.getUTCMonth() + n;
+  const day = date.getUTCDate();
+  const daysInTargetMonth = new Date(Date.UTC(y, m + 1, 0)).getUTCDate();
+  return new Date(Date.UTC(y, m, Math.min(day, daysInTargetMonth)));
+}
+function daysBetween(a, b) {
+  return Math.round((b.getTime() - a.getTime()) / 86_400_000);
+}
+
+function amortPI(balance, annualRate, termMonths, opts = {}) {
+  if (opts.fortnightly) return amortPIFortnightly(balance, annualRate, termMonths, opts);
+  const { extraMonthly = 0, offsetStart = 0, offsetMonthlyGrowth = 0, lumpSums = [], startDate } = opts;
+  const dailyRate = annualRate / 365;
+  const payment = calcMinPayment(balance, annualRate, termMonths) + extraMonthly;
+  const start = toUTCDateOnly(startDate ? new Date(startDate) : new Date());
+  let bal = balance, offset = offsetStart, totalInterest = 0, month = 0;
+  const schedule = [];
+
+  while (bal > 0.005 && month < termMonths * 3) {
+    month++;
+    for (const ls of lumpSums) {
+      if (month === ls.afterYear * 12 + 1) bal = Math.max(0, bal - ls.amount);
+    }
+    if (bal <= 0.005) break;
+    const periodStart = addMonthsUTC(start, month - 1);
+    const periodEnd = addMonthsUTC(start, month);
+    const days = daysBetween(periodStart, periodEnd);
+    const effectiveBal = Math.max(0, bal - offset);
+    const interest = effectiveBal * dailyRate * days;
+    const principal = Math.min(bal, Math.max(0, payment - interest));
+    bal -= principal;
+    totalInterest += interest;
+    offset += offsetMonthlyGrowth;
+    if (opts.buildSchedule) schedule.push({ month, interest, principal, balance: bal, cumInterest: totalInterest, days });
+  }
+
+  return { totalInterest: Math.round(totalInterest), termMonths: month, schedule };
+}
+
+function amortPIFortnightly(balance, annualRate, termMonths, opts = {}) {
+  const { extraMonthly = 0, offsetStart = 0, offsetMonthlyGrowth = 0, lumpSums = [] } = opts;
+  // A fortnight is always exactly 14 days, so ACT/365 accrual here
+  // needs no calendar lookup — it's exact by construction.
+  const dailyRate = annualRate / 365;
+  const monthlyMin = calcMinPayment(balance, annualRate, termMonths);
+  // Extra monthly → per-fortnight: multiply by 12/26 so annual total = extraMonthly × 12
+  const fnPayment = monthlyMin / 2 + extraMonthly * 12 / 26;
+  let bal = balance, offset = offsetStart, totalInterest = 0, period = 0;
+  const schedule = [];
+
+  while (bal > 0.005 && period < (termMonths * 26 / 12) * 3) {
+    // Accumulate two fortnights into one monthly schedule entry
+    let monthInterest = 0, monthPrincipal = 0;
+    for (let fn = 0; fn < 2 && bal > 0.005; fn++) {
+      period++;
+      for (const ls of lumpSums) {
+        const lumpPeriod = Math.round(ls.afterYear * 26) + 1;
+        if (period === lumpPeriod) bal = Math.max(0, bal - ls.amount);
+      }
+      if (bal <= 0.005) break;
+      const effectiveBal = Math.max(0, bal - offset);
+      const interest = effectiveBal * dailyRate * 14;
+      const principal = Math.min(bal, Math.max(0, fnPayment - interest));
+      bal -= principal;
+      totalInterest += interest;
+      offset += offsetMonthlyGrowth * 12 / 26;
+      monthInterest += interest;
+      monthPrincipal += principal;
+    }
+    if (opts.buildSchedule) {
+      const month = Math.round(period * 12 / 26);
+      schedule.push({ month, interest: monthInterest, principal: monthPrincipal, balance: bal, cumInterest: totalInterest });
+    }
+  }
+
+  return {
+    totalInterest: Math.round(totalInterest),
+    termMonths: Math.round(period * 12 / 26),
+    schedule,
+  };
+}
+
+function amortIO(balance, ioRate, ioPeriodYears, revertRate, piTermYears, opts = {}) {
+  const { extraMonthly = 0, offsetStart = 0, offsetMonthlyGrowth = 0, lumpSums = [], startDate } = opts;
+  const dailyRateIO = ioRate / 365, ioMonths = ioPeriodYears * 12, piMonths = piTermYears * 12;
+  const start = toUTCDateOnly(startDate ? new Date(startDate) : new Date());
+  let bal = balance, offset = offsetStart, totalInterest = 0, month = 0;
+  const schedule = [];
+
+  for (let i = 0; i < ioMonths && bal > 0.005; i++) {
+    month++;
+    for (const ls of lumpSums) {
+      if (month === ls.afterYear * 12 + 1) bal = Math.max(0, bal - ls.amount);
+    }
+    if (bal <= 0.005) break;
+    const periodStart = addMonthsUTC(start, month - 1);
+    const periodEnd = addMonthsUTC(start, month);
+    const days = daysBetween(periodStart, periodEnd);
+    const effectiveBal = Math.max(0, bal - offset);
+    const interest = effectiveBal * dailyRateIO * days;
+    const principal = Math.min(bal, Math.max(0, extraMonthly));
+    bal -= principal;
+    totalInterest += interest;
+    offset += offsetMonthlyGrowth;
+    if (opts.buildSchedule) schedule.push({ month, interest, principal, balance: bal, cumInterest: totalInterest, days, phase: 'IO' });
+  }
+
+  if (bal <= 0.005) return { totalInterest: Math.round(totalInterest), termMonths: month, schedule };
+
+  const dailyRatePI = revertRate / 365;
+  const piPayment = calcMinPayment(bal, revertRate, piMonths) + extraMonthly;
+
+  while (bal > 0.005 && month < (ioMonths + piMonths) * 3) {
+    month++;
+    for (const ls of lumpSums) {
+      if (month === ls.afterYear * 12 + 1) bal = Math.max(0, bal - ls.amount);
+    }
+    if (bal <= 0.005) break;
+    const periodStart = addMonthsUTC(start, month - 1);
+    const periodEnd = addMonthsUTC(start, month);
+    const days = daysBetween(periodStart, periodEnd);
+    const effectiveBal = Math.max(0, bal - offset);
+    const interest = effectiveBal * dailyRatePI * days;
+    const principal = Math.min(bal, Math.max(0, piPayment - interest));
+    bal -= principal;
+    totalInterest += interest;
+    offset += offsetMonthlyGrowth;
+    if (opts.buildSchedule) schedule.push({ month, interest, principal, balance: bal, cumInterest: totalInterest, days, phase: 'P&I' });
+  }
+
+  return { totalInterest: Math.round(totalInterest), termMonths: month, schedule };
+}
+
+// ═══════════════════════════════════════════════════════════
+// HELPERS
+// ═══════════════════════════════════════════════════════════
+
+const fmt$ = n => '$' + Math.round(n).toLocaleString('en-AU');
+const fmtRate = r => (r * 100).toFixed(2) + '%';
+
+function termLabel(months) {
+  const y = Math.floor(months / 12), m = months % 12;
+  return m === 0 ? `${y}y` : `${y}y ${m}m`;
+}
+
+function loanFreeDate(termMonths) {
+  const d = new Date();
+  d.setMonth(d.getMonth() + termMonths);
+  return d.toLocaleDateString('en-AU', { month: 'long', year: 'numeric' });
+}
+
+function buildYearlyBalances(schedule, totalTermMonths) {
+  // Returns array of {year, balance} from monthly schedule
+  const years = [];
+  for (let y = 0; y <= Math.ceil(totalTermMonths / 12); y++) {
+    const month = y * 12;
+    const entry = schedule.find(s => s.month >= month) || schedule[schedule.length - 1];
+    years.push({ year: y, balance: entry ? entry.balance : 0 });
+  }
+  return years;
+}
+
+function buildAnnualInterest(schedule, years = 10) {
+  const result = [];
+  for (let y = 1; y <= years; y++) {
+    const start = (y - 1) * 12;
+    const end   = y * 12;
+    const interest = schedule
+      .filter(s => s.month > start && s.month <= end)
+      .reduce((sum, s) => sum + s.interest, 0);
+    result.push({ year: y, interest: Math.round(interest) });
+  }
+  return result;
+}
+
+// ═══════════════════════════════════════════════════════════
+// TAB SWITCHING
+// ═══════════════════════════════════════════════════════════
+
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+  });
+});
+
+// ═══════════════════════════════════════════════════════════
+// LOAN TYPE SWITCHING
+// ═══════════════════════════════════════════════════════════
+
+let currentLoanType = 'pi';
+
+document.querySelectorAll('.loan-type-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.loan-type-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.loan-fields').forEach(f => f.classList.remove('active'));
+    btn.classList.add('active');
+    currentLoanType = btn.dataset.type;
+    document.getElementById('fields-' + currentLoanType).classList.add('active');
+  });
+});
+
+// ═══════════════════════════════════════════════════════════
+// STRATEGY TOGGLES
+// ═══════════════════════════════════════════════════════════
+
+const strategyState = {
+  extra: true, offset: true, fortnightly: true, lump: true,
+  salary: false, refinance: false, ratesens: false,
+};
+
+document.querySelectorAll('.strategy-header').forEach(header => {
+  header.addEventListener('click', () => {
+    const key = header.dataset.strategy;
+    strategyState[key] = !strategyState[key];
+    const toggle = document.getElementById('toggle-' + key);
+    const body   = document.getElementById('body-' + key);
+    toggle.classList.toggle('on', strategyState[key]);
+    body.classList.toggle('hidden', !strategyState[key]);
+  });
+});
+
+// Investment property / shares toggles
+['property', 'shares'].forEach(key => {
+  document.querySelector(`[data-invest="${key}"]`).addEventListener('click', () => {
+    const toggle = document.getElementById('toggle-' + key);
+    const body   = document.getElementById('body-' + key);
+    const on = toggle.classList.toggle('on');
+    body.classList.toggle('hidden', !on);
+    body.querySelectorAll('input, select').forEach(el => el.disabled = !on);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════
+// LUMP SUM LIST
+// ═══════════════════════════════════════════════════════════
+
+let lumpCounter = 0;
+
+function addLumpRow(afterYear = 1, amount = 20000) {
+  lumpCounter++;
+  const id = lumpCounter;
+  const row = document.createElement('div');
+  row.className = 'list-item';
+  row.dataset.lumpId = id;
+  row.innerHTML = `
+    <label>After year</label>
+    <input type="number" class="lump-year" value="${afterYear}" min="0" max="30" step="1" style="max-width:70px">
+    <label>Amount</label>
+    <div class="input-prefix" style="flex:1"><span>$</span>
+      <input type="number" class="lump-amount" value="${amount}" min="0" step="1000">
+    </div>
+    <button class="btn-remove" title="Remove">×</button>
+  `;
+  row.querySelector('.btn-remove').addEventListener('click', () => row.remove());
+  document.getElementById('lump-list').appendChild(row);
+}
+
+document.getElementById('add-lump').addEventListener('click', () => addLumpRow());
+addLumpRow(); // default one row
+
+function getLumpSums() {
+  return [...document.querySelectorAll('#lump-list .list-item')].map(row => ({
+    afterYear: +row.querySelector('.lump-year').value,
+    amount:    +row.querySelector('.lump-amount').value,
+  }));
+}
+
+// ═══════════════════════════════════════════════════════════
+// RATE EVENTS LIST
+// ═══════════════════════════════════════════════════════════
+
+let rateEventCounter = 0;
+
+function addRateEventRow(afterYear = 5, rate = 6.5) {
+  rateEventCounter++;
+  const id = rateEventCounter;
+  const row = document.createElement('div');
+  row.className = 'list-item';
+  row.dataset.eventId = id;
+  row.innerHTML = `
+    <label>After year</label>
+    <input type="number" class="re-year"  value="${afterYear}" min="0" max="40" step="1" style="max-width:70px">
+    <label>New rate</label>
+    <div class="input-suffix" style="flex:1"><span>%</span>
+      <input type="number" class="re-rate" value="${rate}" min="0" max="30" step="0.05">
+    </div>
+    <div class="form-group" style="min-width:120px">
+      <select class="re-type" style="height:34px;font-size:13px;padding:0 6px;border:1px solid var(--border);border-radius:5px;">
+        <option value="variable">Variable Move</option>
+        <option value="fixed">Fixed Rollover</option>
+        <option value="refi">Refinance</option>
+      </select>
+    </div>
+    <button class="btn-remove" title="Remove">×</button>
+  `;
+  row.querySelector('.btn-remove').addEventListener('click', () => row.remove());
+  document.getElementById('rate-events-list').appendChild(row);
+}
+
+document.getElementById('add-rate-event').addEventListener('click', () => addRateEventRow());
+
+// ═══════════════════════════════════════════════════════════
+// SCHEDULE TOGGLES
+// ═══════════════════════════════════════════════════════════
+
+let schedView = 'base', schedPeriod = 'annual';
+
+document.getElementById('sched-view-toggle').addEventListener('click', e => {
+  const btn = e.target.closest('.toggle-opt');
+  if (!btn) return;
+  document.querySelectorAll('#sched-view-toggle .toggle-opt').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  schedView = btn.dataset.sview;
+  renderSchedule();
+});
+
+document.getElementById('sched-period-toggle').addEventListener('click', e => {
+  const btn = e.target.closest('.toggle-opt');
+  if (!btn) return;
+  document.querySelectorAll('#sched-period-toggle .toggle-opt').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  schedPeriod = btn.dataset.speriod;
+  renderSchedule();
+});
+
+// ═══════════════════════════════════════════════════════════
+// CHART INSTANCES
+// ═══════════════════════════════════════════════════════════
+
+const charts = {};
+
+function destroyChart(key) {
+  if (charts[key]) { charts[key].destroy(); delete charts[key]; }
+}
+
+const COLORS = {
+  base:   '#639922',
+  strat:  '#27500A',
+  hike:   '#c0392b',
+  cut:    '#2980b9',
+  refi:   '#8e44ad',
+};
+
+function makeLineChart(canvasId, datasets, labels, yPrefix = '$') {
+  destroyChart(canvasId);
+  const ctx = document.getElementById(canvasId).getContext('2d');
+  charts[canvasId] = new Chart(ctx, {
+    type: 'line',
+    data: { labels, datasets },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { position: 'top', labels: { boxWidth: 12, font: { size: 12 } } },
+        tooltip: {
+          callbacks: {
+            label: ctx => `  ${ctx.dataset.label}: ${yPrefix}${Math.round(ctx.raw).toLocaleString('en-AU')}`,
+          },
+        },
+      },
+      scales: {
+        y: {
+          ticks: { callback: v => yPrefix + Math.round(v / 1000) + 'k', font: { size: 11 } },
+          grid: { color: '#e8f0dc' },
+        },
+        x: { ticks: { font: { size: 11 } }, grid: { display: false } },
+      },
+    },
+  });
+}
+
+function makeBarChart(canvasId, datasets, labels) {
+  destroyChart(canvasId);
+  const ctx = document.getElementById(canvasId).getContext('2d');
+  charts[canvasId] = new Chart(ctx, {
+    type: 'bar',
+    data: { labels, datasets },
+    options: {
+      indexAxis: 'y',
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: ctx => `  Saved: $${Math.round(ctx.raw).toLocaleString('en-AU')}`,
+          },
+        },
+      },
+      scales: {
+        x: {
+          ticks: { callback: v => '$' + Math.round(v / 1000) + 'k', font: { size: 11 } },
+          grid: { color: '#e8f0dc' },
+        },
+        y: { ticks: { font: { size: 12 } }, grid: { display: false } },
+      },
+    },
+  });
+}
+
+function makeGroupedBarChart(canvasId, datasets, labels) {
+  destroyChart(canvasId);
+  const ctx = document.getElementById(canvasId).getContext('2d');
+  charts[canvasId] = new Chart(ctx, {
+    type: 'bar',
+    data: { labels, datasets },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { position: 'top', labels: { boxWidth: 12, font: { size: 12 } } },
+        tooltip: {
+          callbacks: {
+            label: ctx => `  ${ctx.dataset.label}: $${Math.round(ctx.raw).toLocaleString('en-AU')}`,
+          },
+        },
+      },
+      scales: {
+        y: {
+          ticks: { callback: v => '$' + Math.round(v / 1000) + 'k', font: { size: 11 } },
+          grid: { color: '#e8f0dc' },
+        },
+        x: { ticks: { font: { size: 11 } }, grid: { display: false } },
+      },
+    },
+  });
+}
+
+// ═══════════════════════════════════════════════════════════
+// LAST RESULTS STORE (for schedule tab)
+// ═══════════════════════════════════════════════════════════
+
+let lastResults = null;
+
+// ═══════════════════════════════════════════════════════════
+// READ INPUTS
+// ═══════════════════════════════════════════════════════════
+
+function readInputs() {
+  const type = currentLoanType;
+  const inputs = { type };
+
+  if (type === 'pi') {
+    inputs.balance   = +document.getElementById('pi-balance').value;
+    inputs.rate      = +document.getElementById('pi-rate').value / 100;
+    inputs.termYears = +document.getElementById('pi-term').value;
+    inputs.elapsed   = +document.getElementById('pi-elapsed').value;
+    inputs.frequency = document.getElementById('pi-frequency').value;
+  } else if (type === 'io') {
+    inputs.balance    = +document.getElementById('io-balance').value;
+    inputs.ioRate     = +document.getElementById('io-rate').value / 100;
+    inputs.ioPeriod   = +document.getElementById('io-period').value;
+    inputs.revertRate = +document.getElementById('io-revert-rate').value / 100;
+    inputs.piTerm     = +document.getElementById('io-pi-term').value;
+  } else if (type === 'split') {
+    inputs.piBalance  = +document.getElementById('split-pi-balance').value;
+    inputs.piRate     = +document.getElementById('split-pi-rate').value / 100;
+    inputs.piTermYrs  = +document.getElementById('split-pi-term').value;
+    inputs.ioBalance  = +document.getElementById('split-io-balance').value;
+    inputs.ioRate     = +document.getElementById('split-io-rate').value / 100;
+    inputs.ioPeriod   = +document.getElementById('split-io-period').value;
+    inputs.revertRate = +document.getElementById('split-io-revert').value / 100;
+    inputs.iopiTerm   = +document.getElementById('split-io-pi-term').value;
+  } else if (type === 'loc') {
+    inputs.balance   = +document.getElementById('loc-balance').value;
+    inputs.rate      = +document.getElementById('loc-rate').value / 100;
+    inputs.offsetBal = +document.getElementById('loc-offset').value;
+    inputs.termYears = +document.getElementById('loc-term').value;
+  }
+
+  // Strategies
+  inputs.strats = {
+    extra: {
+      on: strategyState.extra,
+      amount: +document.getElementById('extra-amount').value,
+      frequency: document.getElementById('extra-frequency').value,
+    },
+    offset: {
+      on: strategyState.offset,
+      start: +document.getElementById('offset-start').value,
+      growth: +document.getElementById('offset-growth').value,
+    },
+    fortnightly: { on: strategyState.fortnightly },
+    lump: {
+      on: strategyState.lump,
+      items: getLumpSums(),
+    },
+    salary: {
+      on: strategyState.salary,
+      amount: +document.getElementById('salary-amount').value,
+      days:   +document.getElementById('salary-days').value,
+    },
+    refinance: {
+      on: strategyState.refinance,
+      rate:      +document.getElementById('refi-rate').value / 100,
+      termYears: +document.getElementById('refi-term').value,
+      discharge: +document.getElementById('refi-discharge').value,
+      establish: +document.getElementById('refi-establish').value,
+      breakCost: +document.getElementById('refi-break').value,
+      lmi:       +document.getElementById('refi-lmi').value,
+    },
+    rateSens: {
+      on:   strategyState.ratesens,
+      hike: +document.getElementById('sens-hike').value / 100,
+      cut:  +document.getElementById('sens-cut').value / 100,
+    },
+  };
+
+  return inputs;
+}
+
+// ═══════════════════════════════════════════════════════════
+// STRATEGY OPTS BUILDER
+// ═══════════════════════════════════════════════════════════
+
+function buildStratOpts(inp) {
+  const s = inp.strats;
+
+  // Convert extra to monthly
+  let extraMonthly = 0;
+  if (s.extra.on) {
+    const freq = s.extra.frequency;
+    const amt  = s.extra.amount;
+    extraMonthly = freq === 'fortnightly' ? amt * 26 / 12
+                 : freq === 'weekly'      ? amt * 52 / 12
+                 : amt;
+  }
+
+  // Offset
+  let offsetStart = 0, offsetMonthlyGrowth = 0;
+  if (s.offset.on) {
+    offsetStart         = s.offset.start;
+    offsetMonthlyGrowth = s.offset.growth;
+  }
+
+  // Salary offset (adds to starting offset)
+  if (s.salary.on) {
+    offsetStart += s.salary.amount * s.salary.days / 30;
+  }
+
+  // Lump sums
+  const lumpSums = s.lump.on ? s.lump.items : [];
+
+  // Fortnightly
+  const fortnightly = s.fortnightly.on;
+
+  return { extraMonthly, offsetStart, offsetMonthlyGrowth, lumpSums, fortnightly };
+}
+
+// ═══════════════════════════════════════════════════════════
+// MAIN CALCULATE
+// ═══════════════════════════════════════════════════════════
+
+function calculate() {
+  const inp  = readInputs();
+  const opts = buildStratOpts(inp);
+  const type = inp.type;
+
+  let baseResult, stratResult, balance, rate, termMonths;
+
+  if (type === 'pi' || type === 'loc') {
+    balance    = type === 'loc' ? inp.balance : inp.balance;
+    rate       = type === 'loc' ? inp.rate : inp.rate;
+    const yrs  = inp.termYears - (inp.elapsed || 0);
+    termMonths = Math.round(yrs * 12);
+    const locOffsetExtra = type === 'loc' ? inp.offsetBal : 0;
+
+    baseResult  = amortPI(balance, rate, termMonths, { buildSchedule: true });
+    stratResult = amortPI(balance, rate, termMonths, {
+      ...opts,
+      offsetStart: opts.offsetStart + locOffsetExtra,
+      buildSchedule: true,
+    });
+
+  } else if (type === 'io') {
+    balance = inp.balance;
+    rate    = inp.ioRate;
+    termMonths = (inp.ioPeriod + inp.piTerm) * 12;
+
+    baseResult  = amortIO(balance, inp.ioRate, inp.ioPeriod, inp.revertRate, inp.piTerm, { buildSchedule: true });
+    stratResult = amortIO(balance, inp.ioRate, inp.ioPeriod, inp.revertRate, inp.piTerm, {
+      ...opts,
+      buildSchedule: true,
+    });
+
+  } else if (type === 'split') {
+    balance    = inp.piBalance + inp.ioBalance;
+    rate       = inp.piRate; // use P&I rate as representative
+    termMonths = Math.max(inp.piTermYrs * 12, (inp.ioPeriod + inp.iopiTerm) * 12);
+
+    const piBase    = amortPI(inp.piBalance, inp.piRate, inp.piTermYrs * 12, { buildSchedule: true });
+    const ioBase    = amortIO(inp.ioBalance, inp.ioRate, inp.ioPeriod, inp.revertRate, inp.iopiTerm, { buildSchedule: true });
+    const piStrat   = amortPI(inp.piBalance, inp.piRate, inp.piTermYrs * 12, { ...opts, buildSchedule: true });
+    const ioStrat   = amortIO(inp.ioBalance, inp.ioRate, inp.ioPeriod, inp.revertRate, inp.iopiTerm, { ...opts, buildSchedule: true });
+
+    baseResult  = { totalInterest: piBase.totalInterest  + ioBase.totalInterest,  termMonths: Math.max(piBase.termMonths, ioBase.termMonths),  schedule: mergeSchedules(piBase.schedule, ioBase.schedule)   };
+    stratResult = { totalInterest: piStrat.totalInterest + ioStrat.totalInterest, termMonths: Math.max(piStrat.termMonths, ioStrat.termMonths), schedule: mergeSchedules(piStrat.schedule, ioStrat.schedule) };
+  }
+
+  lastResults = { inp, opts, baseResult, stratResult, balance, rate, termMonths };
+
+  renderResults(inp, baseResult, stratResult, balance, rate, termMonths);
+}
+
+function mergeSchedules(a, b) {
+  // Combine two schedules by month, summing balance/interest/principal
+  const maxMonth = Math.max(...a.map(x => x.month), ...b.map(x => x.month));
+  const merged = [];
+  for (let m = 1; m <= maxMonth; m++) {
+    const ea = a.find(x => x.month === m);
+    const eb = b.find(x => x.month === m);
+    merged.push({
+      month: m,
+      interest:    (ea?.interest   || 0) + (eb?.interest   || 0),
+      principal:   (ea?.principal  || 0) + (eb?.principal  || 0),
+      balance:     (ea?.balance    || 0) + (eb?.balance    || 0),
+      cumInterest: (ea?.cumInterest|| 0) + (eb?.cumInterest|| 0),
+    });
+  }
+  return merged;
+}
+
+// ═══════════════════════════════════════════════════════════
+// RENDER RESULTS
+// ═══════════════════════════════════════════════════════════
+
+function renderResults(inp, base, strat, balance, rate, termMonths) {
+  const saved = base.totalInterest - strat.totalInterest;
+
+  // Determine repayment frequency label + value
+  let minRepayment, freqLabel;
+  if (inp.type === 'pi' || inp.type === 'loc') {
+    const freq = inp.type === 'loc' ? 'monthly' : inp.frequency;
+    if (freq === 'fortnightly') {
+      minRepayment = calcMinPayment(balance, rate, termMonths) / 2;
+      freqLabel = '/fortnight';
+    } else if (freq === 'weekly') {
+      minRepayment = calcMinPayment(balance, rate, termMonths) / 4.33;
+      freqLabel = '/week';
+    } else {
+      minRepayment = calcMinPayment(balance, rate, termMonths);
+      freqLabel = '/month';
+    }
+  } else if (inp.type === 'io') {
+    minRepayment = inp.balance * inp.ioRate / 12;
+    freqLabel = '/month (IO phase)';
+  } else {
+    minRepayment = calcMinPayment(inp.piBalance, inp.piRate, inp.piTermYrs * 12) +
+                   calcMinPayment(inp.ioBalance, inp.ioRate, (inp.ioPeriod + inp.iopiTerm) * 12) / 12;
+    freqLabel = '/month (combined)';
+  }
+
+  document.getElementById('m-repayment').textContent     = fmt$(minRepayment);
+  document.getElementById('m-repayment-sub').textContent = freqLabel;
+  document.getElementById('m-total-interest').textContent = fmt$(base.totalInterest);
+  document.getElementById('m-interest-saved').textContent = fmt$(saved);
+  document.getElementById('m-loan-free').textContent      = loanFreeDate(strat.termMonths);
+  document.getElementById('m-loan-free-sub').textContent  = termLabel(strat.termMonths) + ' remaining';
+
+  document.getElementById('results-placeholder').classList.add('hidden');
+
+  // ── Balance chart ────────────────────────────────────────
+  const maxYrs = Math.ceil(Math.max(base.termMonths, strat.termMonths) / 12);
+  const yearLabels = Array.from({ length: maxYrs + 1 }, (_, i) => `Yr ${i}`);
+
+  function yearlyBal(schedule, totalM) {
+    return Array.from({ length: maxYrs + 1 }, (_, i) => {
+      const m = i * 12;
+      if (m === 0) return balance;
+      const entry = schedule.filter(s => s.month <= m).pop();
+      return entry ? Math.max(0, entry.balance) : 0;
+    });
+  }
+
+  const baseBals  = yearlyBal(base.schedule,  base.termMonths);
+  const stratBals = yearlyBal(strat.schedule, strat.termMonths);
+
+  document.getElementById('chart-balance').style.display = 'block';
+  document.getElementById('placeholder-balance').classList.add('hidden');
+  makeLineChart('chart-balance', [
+    { label: 'Base loan',       data: baseBals,  borderColor: COLORS.base,  backgroundColor: 'rgba(99,153,34,.08)',  borderWidth: 2, fill: false, tension: 0.3, pointRadius: 0 },
+    { label: 'With strategies', data: stratBals, borderColor: COLORS.strat, backgroundColor: 'rgba(39,80,10,.08)',   borderWidth: 2, fill: false, tension: 0.3, pointRadius: 0 },
+  ], yearLabels);
+
+  // ── Strategy breakdown chart ─────────────────────────────
+  document.getElementById('placeholder-breakdown').classList.add('hidden');
+  renderBreakdownChart(inp, base, balance, rate, termMonths);
+
+  // ── Annual interest chart ────────────────────────────────
+  document.getElementById('placeholder-annual').classList.add('hidden');
+  const yrs10 = Math.min(10, Math.ceil(base.termMonths / 12));
+  const annLabels = Array.from({ length: yrs10 }, (_, i) => `Year ${i + 1}`);
+  const baseAnn  = buildAnnualInterest(base.schedule, yrs10).map(r => r.interest);
+  const stratAnn = buildAnnualInterest(strat.schedule, yrs10).map(r => r.interest);
+
+  makeGroupedBarChart('chart-annual', [
+    { label: 'Base loan',       data: baseAnn,  backgroundColor: COLORS.base,  borderRadius: 3 },
+    { label: 'With strategies', data: stratAnn, backgroundColor: COLORS.strat, borderRadius: 3 },
+  ], annLabels);
+
+  // ── Refinance ────────────────────────────────────────────
+  const refiSection = document.getElementById('section-refinance');
+  if (inp.strats.refinance.on && (inp.type === 'pi' || inp.type === 'loc')) {
+    refiSection.classList.remove('hidden');
+    renderRefinance(inp, base, balance, rate, termMonths);
+  } else {
+    refiSection.classList.add('hidden');
+  }
+
+  // ── Rate sensitivity ─────────────────────────────────────
+  const sensSection = document.getElementById('section-ratesens');
+  if (inp.strats.rateSens.on && (inp.type === 'pi' || inp.type === 'loc')) {
+    sensSection.classList.remove('hidden');
+    renderRateSens(inp, base, balance, rate, termMonths);
+  } else {
+    sensSection.classList.add('hidden');
+  }
+
+  renderSchedule();
+}
+
+// ── Individual strategy savings breakdown ────────────────
+
+function renderBreakdownChart(inp, base, balance, rate, termMonths) {
+  const type  = inp.type;
+  if (type !== 'pi' && type !== 'loc') {
+    document.getElementById('placeholder-breakdown').classList.remove('hidden');
+    return;
+  }
+  const s     = inp.strats;
+  const savedResults = [];
+
+  const run = opts => amortPI(balance, rate, termMonths, opts).totalInterest;
+
+  if (s.extra.on) {
+    let em = s.extra.amount;
+    if (s.extra.frequency === 'fortnightly') em = em * 26 / 12;
+    else if (s.extra.frequency === 'weekly')  em = em * 52 / 12;
+    savedResults.push({ label: 'Extra Repayments', saved: base.totalInterest - run({ extraMonthly: em }) });
+  }
+  if (s.offset.on) {
+    const offStart = s.offset.start + (s.salary.on ? s.salary.amount * s.salary.days / 30 : 0);
+    savedResults.push({ label: 'Offset Account', saved: base.totalInterest - run({ offsetStart: offStart, offsetMonthlyGrowth: s.offset.growth }) });
+  }
+  if (s.fortnightly.on) {
+    savedResults.push({ label: 'Fortnightly', saved: base.totalInterest - run({ fortnightly: true }) });
+  }
+  if (s.lump.on && s.lump.items.length) {
+    savedResults.push({ label: 'Lump Sums', saved: base.totalInterest - run({ lumpSums: s.lump.items }) });
+  }
+  if (s.salary.on) {
+    const so = s.salary.amount * s.salary.days / 30;
+    savedResults.push({ label: 'Salary Offset', saved: base.totalInterest - run({ offsetStart: so }) });
+  }
+
+  savedResults.sort((a, b) => b.saved - a.saved);
+
+  makeBarChart('chart-breakdown',
+    [{ data: savedResults.map(r => Math.max(0, r.saved)), backgroundColor: savedResults.map(() => COLORS.g600 || COLORS.base), borderRadius: 4 }],
+    savedResults.map(r => r.label),
+  );
+}
+
+// ── Refinance ────────────────────────────────────────────
+
+function renderRefinance(inp, base, balance, rate, termMonths) {
+  const rf    = inp.strats.refinance;
+  const newR  = amortPI(balance, rf.rate, rf.termYears * 12, { buildSchedule: true });
+  const costs = rf.discharge + rf.establish + rf.breakCost + rf.lmi;
+  const gross = base.totalInterest - newR.totalInterest;
+  const net   = gross - costs;
+  const curPay = calcMinPayment(balance, rate, termMonths);
+  const newPay = calcMinPayment(balance, rf.rate, rf.termYears * 12);
+  const mSave  = curPay - newPay;
+  const beven  = mSave > 0 ? Math.ceil(costs / mSave) : null;
+
+  document.getElementById('refi-new-payment').textContent = fmt$(newPay) + '/mo';
+  document.getElementById('refi-gross-saving').textContent = fmt$(gross);
+  document.getElementById('refi-switch-costs').textContent  = fmt$(costs);
+  document.getElementById('refi-net-saving').textContent    = fmt$(net);
+  document.getElementById('refi-breakeven-sub').textContent = beven ? `Break-even: ${beven} months` : 'Negative saving';
+
+  // Refi balance chart
+  const maxYrs = Math.ceil(Math.max(base.termMonths, newR.termMonths) / 12);
+  const yLabels = Array.from({ length: maxYrs + 1 }, (_, i) => `Yr ${i}`);
+  const curBals = Array.from({ length: maxYrs + 1 }, (_, i) => {
+    const r = base.schedule.filter(s => s.month <= i * 12).pop();
+    return r ? Math.max(0, r.balance) : (i === 0 ? balance : 0);
+  });
+  const newBals = Array.from({ length: maxYrs + 1 }, (_, i) => {
+    const r = newR.schedule?.filter(s => s.month <= i * 12).pop();
+    return r ? Math.max(0, r.balance) : (i === 0 ? balance : 0);
+  });
+
+  makeLineChart('chart-refi', [
+    { label: 'Current loan',  data: curBals, borderColor: COLORS.base,  borderWidth: 2, fill: false, tension: 0.3, pointRadius: 0 },
+    { label: 'Refinanced',    data: newBals, borderColor: COLORS.refi,  borderWidth: 2, fill: false, tension: 0.3, pointRadius: 0 },
+  ], yLabels);
+}
+
+// ── Rate sensitivity ─────────────────────────────────────
+
+function renderRateSens(inp, base, balance, rate, termMonths) {
+  const sens  = inp.strats.rateSens;
+  const curPay = calcMinPayment(balance, rate, termMonths);
+  const hikePay = calcMinPayment(balance, rate + sens.hike, termMonths);
+  const cutMin  = amortPI(balance, rate - sens.cut, termMonths);
+  const cutMaintainExtra = curPay - calcMinPayment(balance, rate - sens.cut, termMonths);
+  const cutMaintain = amortPI(balance, rate - sens.cut, termMonths, { extraMonthly: Math.max(0, cutMaintainExtra) });
+  const cutSaved = cutMin.totalInterest - cutMaintain.totalInterest;
+
+  const cutNewMin = calcMinPayment(balance, rate - sens.cut, termMonths);
+
+  document.getElementById('sens-hike-label').textContent        = `Rate Hike +${(sens.hike*100).toFixed(2)}%`;
+  document.getElementById('sens-hike-payment').textContent      = fmt$(hikePay) + '/mo';
+  document.getElementById('sens-hike-sub').textContent          = `+${fmt$(hikePay - curPay)}/mo increase`;
+  document.getElementById('sens-current-payment').textContent   = fmt$(curPay) + '/mo';
+  document.getElementById('sens-cut-label').textContent         = `Rate Cut −${(sens.cut*100).toFixed(2)}%`;
+  document.getElementById('sens-cut-new-min').textContent       = fmt$(cutNewMin) + '/mo';
+  document.getElementById('sens-cut-maintain-label').textContent = `Retain $${Math.round(curPay).toLocaleString()}/mo repayment`;
+  document.getElementById('sens-cut-saving').textContent        = fmt$(cutSaved);
+  document.getElementById('sens-cut-sub').textContent           = `repaid in ${termLabel(cutMaintain.termMonths)}`;
+
+  // 3-line balance chart
+  const hikeRes = amortPI(balance, rate + sens.hike, termMonths, { buildSchedule: true });
+  const cutRes  = amortPI(balance, rate - sens.cut,  termMonths, {
+    extraMonthly: Math.max(0, cutMaintainExtra),
+    buildSchedule: true,
+  });
+  const maxYrs  = Math.ceil(Math.max(base.termMonths, hikeRes.termMonths) / 12);
+  const yLabels = Array.from({ length: maxYrs + 1 }, (_, i) => `Yr ${i}`);
+
+  function yrBal(sched, bal0) {
+    return Array.from({ length: maxYrs + 1 }, (_, i) => {
+      if (i === 0) return bal0;
+      const r = sched.filter(s => s.month <= i * 12).pop();
+      return r ? Math.max(0, r.balance) : 0;
+    });
+  }
+
+  makeLineChart('chart-sens', [
+    { label: `Hike +${(sens.hike*100).toFixed(2)}%`, data: yrBal(hikeRes.schedule, balance), borderColor: COLORS.hike, borderWidth: 2, fill: false, tension: 0.3, pointRadius: 0 },
+    { label: 'Current rate',                          data: yrBal(base.schedule,    balance), borderColor: COLORS.base, borderWidth: 2, fill: false, tension: 0.3, pointRadius: 0 },
+    { label: `Cut −${(sens.cut*100).toFixed(2)}%`,   data: yrBal(cutRes.schedule,  balance), borderColor: COLORS.cut,  borderWidth: 2, fill: false, tension: 0.3, pointRadius: 0 },
+  ], yLabels);
+}
+
+// ═══════════════════════════════════════════════════════════
+// SCHEDULE RENDER
+// ═══════════════════════════════════════════════════════════
+
+function renderSchedule() {
+  if (!lastResults) return;
+  const { inp, baseResult, stratResult, balance, termMonths } = lastResults;
+  const result = schedView === 'base' ? baseResult : stratResult;
+  const sched  = result.schedule;
+  if (!sched || sched.length === 0) return;
+
+  document.getElementById('schedule-placeholder').classList.add('hidden');
+  document.getElementById('schedule-table-wrap').classList.remove('hidden');
+
+  const freqLabel = inp.frequency === 'fortnightly' ? 'Fortnight'
+                  : inp.frequency === 'weekly'      ? 'Week'
+                  : 'Month';
+
+  const thead = document.getElementById('schedule-thead');
+  thead.innerHTML = `<tr>
+    <th>${schedPeriod === 'annual' ? 'Year' : freqLabel}</th>
+    <th>Repayment</th><th>Principal</th><th>Interest</th>
+    <th>Balance</th><th>Cum. Interest</th>
+  </tr>`;
+
+  const tbody = document.getElementById('schedule-tbody');
+  tbody.innerHTML = '';
+
+  let rows;
+  if (schedPeriod === 'annual') {
+    const maxYear = Math.ceil(result.termMonths / 12);
+    rows = Array.from({ length: maxYear }, (_, i) => {
+      const y = i + 1;
+      const monthsInYear = sched.filter(s => s.month > (y - 1) * 12 && s.month <= y * 12);
+      const repay = monthsInYear.reduce((s, r) => s + r.interest + r.principal, 0);
+      const prin  = monthsInYear.reduce((s, r) => s + r.principal, 0);
+      const int   = monthsInYear.reduce((s, r) => s + r.interest, 0);
+      const last  = monthsInYear[monthsInYear.length - 1] || sched[sched.length - 1];
+      return { period: y, repay, prin, int, balance: last?.balance || 0, cumInterest: last?.cumInterest || 0 };
+    });
+  } else {
+    rows = sched.map(r => ({
+      period: r.month,
+      repay: r.interest + r.principal,
+      prin:  r.principal,
+      int:   r.interest,
+      balance: r.balance,
+      cumInterest: r.cumInterest,
+    }));
+  }
+
+  const frag = document.createDocumentFragment();
+  rows.forEach(r => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${r.period}</td>
+      <td>${fmt$(r.repay)}</td>
+      <td>${fmt$(r.prin)}</td>
+      <td>${fmt$(r.int)}</td>
+      <td>${fmt$(r.balance)}</td>
+      <td>${fmt$(r.cumInterest)}</td>
+    `;
+    frag.appendChild(tr);
+  });
+  tbody.appendChild(frag);
+
+  // Totals row
+  const total = rows.reduce((a, r) => ({
+    repay: a.repay + r.repay, prin: a.prin + r.prin, int: a.int + r.int,
+  }), { repay: 0, prin: 0, int: 0 });
+  document.getElementById('schedule-tfoot').innerHTML = `<tr>
+    <td>Total</td>
+    <td>${fmt$(total.repay)}</td>
+    <td>${fmt$(total.prin)}</td>
+    <td>${fmt$(total.int)}</td>
+    <td>—</td><td>—</td>
+  </tr>`;
+}
+
+// ═══════════════════════════════════════════════════════════
+// INVESTMENT CALCULATE
+// ═══════════════════════════════════════════════════════════
+
+function calcInvestment() {
+  const propOn   = document.getElementById('toggle-property').classList.contains('on');
+  const sharesOn = document.getElementById('toggle-shares').classList.contains('on');
+
+  if (propOn) {
+    const taxRate    = +document.getElementById('prop-tax-rate').value / 100;
+    const rent       = +document.getElementById('prop-rent').value;
+    const expenses   = +document.getElementById('prop-expenses').value;
+    const depr       = +document.getElementById('prop-depreciation').value;
+    let   interest   = +document.getElementById('prop-interest').value;
+
+    // Auto-fill from mortgage calc if 0
+    if (interest === 0 && lastResults) {
+      const { inp, balance, rate, termMonths } = lastResults;
+      if (inp.type === 'pi') interest = Math.round(balance * rate);
+    }
+
+    const netCost    = (interest + expenses - rent) * (1 - taxRate) - depr * taxRate;
+    const taxOutcome = -(interest + expenses - rent) * taxRate - depr * taxRate;
+    const effectRate = interest > 0 ? (netCost / interest * 100).toFixed(2) + '%' : '—';
+
+    const tbody = document.getElementById('prop-results-body');
+    const rows = [
+      ['Gross Rental Income',  fmt$(rent)],
+      ['Property Expenses',    fmt$(expenses)],
+      ['Depreciation',         fmt$(depr)],
+      ['Investment Loan Interest', fmt$(interest)],
+      ['Taxable Position (loss)',  fmt$(interest + expenses - rent)],
+      [taxOutcome < 0 ? 'Tax Payable' : 'Tax Refund', fmt$(Math.abs(taxOutcome))],
+      ['Net Annual Cost',      fmt$(netCost)],
+      ['Effective Rate on Loan', effectRate],
+    ];
+    tbody.innerHTML = rows.map(([l, v]) => `<tr><td>${l}</td><td>${v}</td></tr>`).join('');
+    document.getElementById('prop-results').classList.remove('hidden');
+
+    // 10-year cost chart
+    const years = Array.from({ length: 10 }, (_, i) => `Year ${i + 1}`);
+    const grossCosts = years.map((_, i) => (interest + expenses) * (i + 1));
+    const netCosts   = years.map((_, i) => Math.max(0, netCost) * (i + 1));
+    destroyChart('chart-property');
+    const ctx = document.getElementById('chart-property').getContext('2d');
+    charts['chart-property'] = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: years,
+        datasets: [
+          { label: 'Gross Cost', data: grossCosts, backgroundColor: '#c8ddb0', borderRadius: 3 },
+          { label: 'Net Cost',   data: netCosts,   backgroundColor: COLORS.strat, borderRadius: 3 },
+        ],
+      },
+      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'top' } }, scales: { y: { ticks: { callback: v => '$' + Math.round(v / 1000) + 'k' } } } },
+    });
+  }
+
+  if (sharesOn) {
+    const mtr     = +document.getElementById('shares-tax-rate').value / 100;
+    const portVal = +document.getElementById('shares-value').value;
+    const yield_  = +document.getElementById('shares-yield').value / 100;
+    const totalRet = +document.getElementById('shares-return').value / 100;
+    const frankPct = +document.getElementById('shares-franking').value / 100;
+    const mrgRate  = +document.getElementById('shares-margin-rate').value / 100;
+    const mrgBal   = +document.getElementById('shares-margin-bal').value;
+
+    const grossDiv       = portVal * yield_;
+    const frankingCredit = grossDiv * (frankPct * 0.30 / 0.70);
+    const grossAssess    = grossDiv + frankingCredit;
+    const taxOnGross     = grossAssess * mtr;
+    const frankingOffset = Math.min(frankingCredit, taxOnGross);
+    const netTax         = taxOnGross - frankingOffset;
+    const netDiv         = mtr < 0.30
+                           ? grossDiv + (frankingCredit - taxOnGross)
+                           : grossDiv - netTax;
+    const marginCost     = mrgBal * mrgRate;
+
+    const tbody = document.getElementById('shares-results-body');
+    const rows = [
+      ['Cash Dividend',        fmt$(grossDiv)],
+      ['Franking Credits',     fmt$(frankingCredit)],
+      ['Gross Assessable',     fmt$(grossAssess)],
+      ['Tax on Gross',         fmt$(taxOnGross)],
+      ['Less: Franking Offset',fmt$(frankingOffset)],
+      ['Net Tax',              fmt$(netTax)],
+      ['Net Dividend',         fmt$(netDiv)],
+      ['Margin Loan Cost',     fmt$(marginCost)],
+      ['Net After Margin',     fmt$(netDiv - marginCost)],
+    ];
+    tbody.innerHTML = rows.map(([l, v]) => `<tr><td>${l}</td><td>${v}</td></tr>`).join('');
+    document.getElementById('shares-results').classList.remove('hidden');
+
+    // 10-year portfolio growth + dividends chart
+    const years = Array.from({ length: 10 }, (_, i) => `Year ${i + 1}`);
+    let pv = portVal;
+    const portVals = [], cumDivs = [];
+    let cumDiv = 0;
+    for (let y = 1; y <= 10; y++) {
+      pv *= (1 + totalRet);
+      cumDiv += netDiv;
+      portVals.push(Math.round(pv));
+      cumDivs.push(Math.round(cumDiv));
+    }
+    destroyChart('chart-shares');
+    const ctx = document.getElementById('chart-shares').getContext('2d');
+    charts['chart-shares'] = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: years,
+        datasets: [
+          { label: 'Portfolio Value',    data: portVals, borderColor: COLORS.strat, backgroundColor: 'rgba(39,80,10,.08)', fill: true, tension: 0.3, pointRadius: 0, yAxisID: 'y' },
+          { label: 'Cumulative Div Net', data: cumDivs,  borderColor: COLORS.base,  backgroundColor: 'transparent',       fill: false, tension: 0.3, pointRadius: 3, yAxisID: 'y2' },
+        ],
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { position: 'top' } },
+        scales: {
+          y:  { position: 'left',  ticks: { callback: v => '$' + Math.round(v / 1000) + 'k' } },
+          y2: { position: 'right', ticks: { callback: v => '$' + Math.round(v / 1000) + 'k' }, grid: { drawOnChartArea: false } },
+        },
+      },
+    });
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+// EVENT WIRING
+// ═══════════════════════════════════════════════════════════
+
+document.getElementById('btn-calculate').addEventListener('click', () => {
+  calculate();
+  // Switch to results tab
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.querySelector('[data-tab="results"]').classList.add('active');
+  document.getElementById('tab-results').classList.add('active');
+});
+
+document.getElementById('btn-calculate-2').addEventListener('click', () => {
+  calculate();
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.querySelector('[data-tab="results"]').classList.add('active');
+  document.getElementById('tab-results').classList.add('active');
+});
+
+document.getElementById('btn-run-all').addEventListener('click', () => {
+  calculate();
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.querySelector('[data-tab="results"]').classList.add('active');
+  document.getElementById('tab-results').classList.add('active');
+});
+
+document.getElementById('btn-invest-calc').addEventListener('click', calcInvestment);
+
+</script>
+</body>
+</html>
