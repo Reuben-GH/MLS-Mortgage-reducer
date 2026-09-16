@@ -373,6 +373,35 @@ checkTrue(
 );
 checkMonths('Remaining term after change is original term minus elapsed months', remainingMonths, BASE.termMonths - RATE_CHANGE_MONTH);
 
+// Now exercise the actual amortPI(rateEvents) implementation (not just the
+// formula in isolation) — afterYear:1 fires the event at month 13 (start of
+// year 2), one month later than RATE_CHANGE_MONTH above, so this recomputes
+// its own expected balance/payment from the engine's own no-event run rather
+// than reusing balanceAtChange from month 12.
+const rateEventMonth = 13;
+const engineNoEvent = amortPI(BASE.balance, BASE.rate, BASE.termMonths, { startDate: BASE.startDate, buildSchedule: true });
+const engineBalanceAtEvent = engineNoEvent.schedule.find(s => s.month === rateEventMonth - 1).balance;
+const engineRemainingMonths = BASE.termMonths - (rateEventMonth - 1);
+const engineExpectedPayment = calcMinPayment(engineBalanceAtEvent, NEW_RATE, engineRemainingMonths);
+
+const engineWithEvent = amortPI(BASE.balance, BASE.rate, BASE.termMonths, {
+  startDate: BASE.startDate,
+  rateEvents: [{ afterYear: 1, rate: NEW_RATE }],
+  buildSchedule: true,
+});
+const engineEventRow = engineWithEvent.schedule.find(s => s.month === rateEventMonth);
+const engineActualPayment = engineEventRow.interest + engineEventRow.principal;
+
+checkDollar(
+  'amortPI(rateEvents) recasts from the carried-forward balance, not a restart (real implementation, not just the formula)',
+  engineActualPayment, engineExpectedPayment, 1,
+);
+checkTrue(
+  'Total interest over the full term rises after a rate-hike event (recast still amortises fully, at a higher rate)',
+  engineWithEvent.totalInterest > engineNoEvent.totalInterest,
+  `with-event $${engineWithEvent.totalInterest.toLocaleString()} vs no-event $${engineNoEvent.totalInterest.toLocaleString()}`,
+);
+
 // ============================================================
 // TC7 — Early full payoff
 // ============================================================

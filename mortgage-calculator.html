@@ -1104,9 +1104,9 @@ function daysBetween(a, b) {
 
 function amortPI(balance, annualRate, termMonths, opts = {}) {
   if (opts.fortnightly) return amortPIFortnightly(balance, annualRate, termMonths, opts);
-  const { extraMonthly = 0, offsetStart = 0, offsetMonthlyGrowth = 0, lumpSums = [], startDate } = opts;
-  const dailyRate = annualRate / 365;
-  const payment = calcMinPayment(balance, annualRate, termMonths) + extraMonthly;
+  const { extraMonthly = 0, offsetStart = 0, offsetMonthlyGrowth = 0, lumpSums = [], rateEvents = [], startDate } = opts;
+  let rate = annualRate;
+  let payment = calcMinPayment(balance, annualRate, termMonths) + extraMonthly;
   const start = toUTCDateOnly(startDate ? new Date(startDate) : new Date());
   let bal = balance, offset = offsetStart, totalInterest = 0, month = 0;
   const schedule = [];
@@ -1117,6 +1117,15 @@ function amortPI(balance, annualRate, termMonths, opts = {}) {
       if (month === ls.afterYear * 12 + 1) bal = Math.max(0, bal - ls.amount);
     }
     if (bal <= 0.005) break;
+    // Rate change events recast the repayment from the carried-forward
+    // balance over the remaining term, same as the IO→P&I revert recast.
+    for (const re of rateEvents) {
+      if (month === re.afterYear * 12 + 1) {
+        rate = re.rate;
+        payment = calcMinPayment(bal, rate, Math.max(1, termMonths - (month - 1))) + extraMonthly;
+      }
+    }
+    const dailyRate = rate / 365;
     const periodStart = addMonthsUTC(start, month - 1);
     const periodEnd = addMonthsUTC(start, month);
     const days = daysBetween(periodStart, periodEnd);
@@ -1133,13 +1142,13 @@ function amortPI(balance, annualRate, termMonths, opts = {}) {
 }
 
 function amortPIFortnightly(balance, annualRate, termMonths, opts = {}) {
-  const { extraMonthly = 0, offsetStart = 0, offsetMonthlyGrowth = 0, lumpSums = [] } = opts;
+  const { extraMonthly = 0, offsetStart = 0, offsetMonthlyGrowth = 0, lumpSums = [], rateEvents = [] } = opts;
   // A fortnight is always exactly 14 days, so ACT/365 accrual here
   // needs no calendar lookup — it's exact by construction.
-  const dailyRate = annualRate / 365;
-  const monthlyMin = calcMinPayment(balance, annualRate, termMonths);
+  let rate = annualRate;
+  let monthlyMin = calcMinPayment(balance, annualRate, termMonths);
   // Extra monthly → per-fortnight: multiply by 12/26 so annual total = extraMonthly × 12
-  const fnPayment = monthlyMin / 2 + extraMonthly * 12 / 26;
+  let fnPayment = monthlyMin / 2 + extraMonthly * 12 / 26;
   let bal = balance, offset = offsetStart, totalInterest = 0, period = 0;
   const schedule = [];
 
@@ -1153,6 +1162,18 @@ function amortPIFortnightly(balance, annualRate, termMonths, opts = {}) {
         if (period === lumpPeriod) bal = Math.max(0, bal - ls.amount);
       }
       if (bal <= 0.005) break;
+      // Rate change events recast the fortnightly repayment from the
+      // carried-forward balance over the remaining term.
+      for (const re of rateEvents) {
+        const eventPeriod = Math.round(re.afterYear * 26) + 1;
+        if (period === eventPeriod) {
+          rate = re.rate;
+          const remainingMonths = Math.max(1, termMonths - Math.round((period - 1) * 12 / 26));
+          monthlyMin = calcMinPayment(bal, rate, remainingMonths);
+          fnPayment = monthlyMin / 2 + extraMonthly * 12 / 26;
+        }
+      }
+      const dailyRate = rate / 365;
       const effectiveBal = Math.max(0, bal - offset);
       const interest = effectiveBal * dailyRate * 14;
       const principal = Math.min(bal, Math.max(0, fnPayment - interest));
@@ -1176,11 +1197,12 @@ function amortPIFortnightly(balance, annualRate, termMonths, opts = {}) {
 }
 
 function amortIO(balance, ioRate, ioPeriodYears, revertRate, piTermYears, opts = {}) {
-  const { extraMonthly = 0, offsetStart = 0, offsetMonthlyGrowth = 0, lumpSums = [], startDate } = opts;
-  const dailyRateIO = ioRate / 365, ioMonths = ioPeriodYears * 12, piMonths = piTermYears * 12;
+  const { extraMonthly = 0, offsetStart = 0, offsetMonthlyGrowth = 0, lumpSums = [], rateEvents = [], startDate } = opts;
+  const ioMonths = ioPeriodYears * 12, piMonths = piTermYears * 12;
   const start = toUTCDateOnly(startDate ? new Date(startDate) : new Date());
   let bal = balance, offset = offsetStart, totalInterest = 0, month = 0;
   const schedule = [];
+  let rate = ioRate;
 
   for (let i = 0; i < ioMonths && bal > 0.005; i++) {
     month++;
@@ -1188,6 +1210,12 @@ function amortIO(balance, ioRate, ioPeriodYears, revertRate, piTermYears, opts =
       if (month === ls.afterYear * 12 + 1) bal = Math.max(0, bal - ls.amount);
     }
     if (bal <= 0.005) break;
+    // During IO, a rate event only changes the interest charged — there's
+    // no repayment formula to recast, IO payments are interest-only.
+    for (const re of rateEvents) {
+      if (month === re.afterYear * 12 + 1) rate = re.rate;
+    }
+    const dailyRateIO = rate / 365;
     const periodStart = addMonthsUTC(start, month - 1);
     const periodEnd = addMonthsUTC(start, month);
     const days = daysBetween(periodStart, periodEnd);
@@ -1202,8 +1230,11 @@ function amortIO(balance, ioRate, ioPeriodYears, revertRate, piTermYears, opts =
 
   if (bal <= 0.005) return { totalInterest: Math.round(totalInterest), termMonths: month, schedule };
 
-  const dailyRatePI = revertRate / 365;
-  const piPayment = calcMinPayment(bal, revertRate, piMonths) + extraMonthly;
+  // P&I revert phase — the official revert rate always wins at the
+  // transition, even if a rate event fired during the IO phase.
+  rate = revertRate;
+  let piPayment = calcMinPayment(bal, rate, piMonths) + extraMonthly;
+  const piStartMonth = month;
 
   while (bal > 0.005 && month < (ioMonths + piMonths) * 3) {
     month++;
@@ -1211,6 +1242,16 @@ function amortIO(balance, ioRate, ioPeriodYears, revertRate, piTermYears, opts =
       if (month === ls.afterYear * 12 + 1) bal = Math.max(0, bal - ls.amount);
     }
     if (bal <= 0.005) break;
+    // Rate change events during the P&I phase recast the repayment from
+    // the carried-forward balance over the remaining P&I term.
+    for (const re of rateEvents) {
+      if (month === re.afterYear * 12 + 1) {
+        rate = re.rate;
+        const remainingMonths = Math.max(1, piMonths - (month - piStartMonth));
+        piPayment = calcMinPayment(bal, rate, remainingMonths) + extraMonthly;
+      }
+    }
+    const dailyRatePI = rate / 365;
     const periodStart = addMonthsUTC(start, month - 1);
     const periodEnd = addMonthsUTC(start, month);
     const days = daysBetween(periodStart, periodEnd);
@@ -1397,6 +1438,13 @@ function addRateEventRow(afterYear = 5, rate = 6.5) {
 
 document.getElementById('add-rate-event').addEventListener('click', () => addRateEventRow());
 
+function getRateEvents() {
+  return [...document.querySelectorAll('#rate-events-list .list-item')].map(row => ({
+    afterYear: +row.querySelector('.re-year').value,
+    rate:      +row.querySelector('.re-rate').value / 100,
+  }));
+}
+
 // ═══════════════════════════════════════════════════════════
 // SCHEDULE TOGGLES
 // ═══════════════════════════════════════════════════════════
@@ -1564,6 +1612,10 @@ function readInputs() {
     inputs.termYears = +document.getElementById('loc-term').value;
   }
 
+  // Rate change events (not a toggled strategy — an optional, always-on
+  // part of the loan's projected rate path, applied to base and strat runs alike)
+  inputs.rateEvents = getRateEvents();
+
   // Strategies
   inputs.strats = {
     extra: {
@@ -1640,7 +1692,10 @@ function buildStratOpts(inp) {
   // Fortnightly
   const fortnightly = s.fortnightly.on;
 
-  return { extraMonthly, offsetStart, offsetMonthlyGrowth, lumpSums, fortnightly };
+  // Rate change events
+  const rateEvents = inp.rateEvents || [];
+
+  return { extraMonthly, offsetStart, offsetMonthlyGrowth, lumpSums, fortnightly, rateEvents };
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -1661,7 +1716,7 @@ function calculate() {
     termMonths = Math.round(yrs * 12);
     const locOffsetExtra = type === 'loc' ? inp.offsetBal : 0;
 
-    baseResult  = amortPI(balance, rate, termMonths, { buildSchedule: true });
+    baseResult  = amortPI(balance, rate, termMonths, { rateEvents: opts.rateEvents, buildSchedule: true });
     stratResult = amortPI(balance, rate, termMonths, {
       ...opts,
       offsetStart: opts.offsetStart + locOffsetExtra,
@@ -1673,7 +1728,7 @@ function calculate() {
     rate    = inp.ioRate;
     termMonths = (inp.ioPeriod + inp.piTerm) * 12;
 
-    baseResult  = amortIO(balance, inp.ioRate, inp.ioPeriod, inp.revertRate, inp.piTerm, { buildSchedule: true });
+    baseResult  = amortIO(balance, inp.ioRate, inp.ioPeriod, inp.revertRate, inp.piTerm, { rateEvents: opts.rateEvents, buildSchedule: true });
     stratResult = amortIO(balance, inp.ioRate, inp.ioPeriod, inp.revertRate, inp.piTerm, {
       ...opts,
       buildSchedule: true,
@@ -1684,8 +1739,8 @@ function calculate() {
     rate       = inp.piRate; // use P&I rate as representative
     termMonths = Math.max(inp.piTermYrs * 12, (inp.ioPeriod + inp.iopiTerm) * 12);
 
-    const piBase    = amortPI(inp.piBalance, inp.piRate, inp.piTermYrs * 12, { buildSchedule: true });
-    const ioBase    = amortIO(inp.ioBalance, inp.ioRate, inp.ioPeriod, inp.revertRate, inp.iopiTerm, { buildSchedule: true });
+    const piBase    = amortPI(inp.piBalance, inp.piRate, inp.piTermYrs * 12, { rateEvents: opts.rateEvents, buildSchedule: true });
+    const ioBase    = amortIO(inp.ioBalance, inp.ioRate, inp.ioPeriod, inp.revertRate, inp.iopiTerm, { rateEvents: opts.rateEvents, buildSchedule: true });
     const piStrat   = amortPI(inp.piBalance, inp.piRate, inp.piTermYrs * 12, { ...opts, buildSchedule: true });
     const ioStrat   = amortIO(inp.ioBalance, inp.ioRate, inp.ioPeriod, inp.revertRate, inp.iopiTerm, { ...opts, buildSchedule: true });
 
@@ -1826,7 +1881,8 @@ function renderBreakdownChart(inp, base, balance, rate, termMonths) {
   const s     = inp.strats;
   const savedResults = [];
 
-  const run = opts => amortPI(balance, rate, termMonths, opts).totalInterest;
+  const rateEvents = inp.rateEvents || [];
+  const run = opts => amortPI(balance, rate, termMonths, { rateEvents, ...opts }).totalInterest;
 
   if (s.extra.on) {
     let em = s.extra.amount;
