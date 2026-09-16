@@ -59,6 +59,9 @@ function daysBetween(a, b) {
 //   offsetStart         — starting offset balance
 //   offsetMonthlyGrowth — offset grows by this amount each month (AFTER interest)
 //   lumpSums            — [{ afterYear, amount }] applied at start of year N+1
+//   rateEvents          — [{ afterYear, rate }] recasts the repayment from the
+//                          carried-forward balance over the remaining term,
+//                          applied at start of year N+1 (latest-fired wins)
 //   fortnightly         — use half-monthly fortnightly method
 //   startDate           — calendar date the loan/schedule starts (default: today)
 //   buildSchedule       — if true, populate the returned `schedule` array
@@ -70,11 +73,12 @@ function amortPI(balance, annualRate, termMonths, opts = {}) {
     offsetStart = 0,
     offsetMonthlyGrowth = 0,
     lumpSums = [],
+    rateEvents = [],
     startDate,
   } = opts;
 
-  const dailyRate = annualRate / 365;
-  const payment = calcMinPayment(balance, annualRate, termMonths) + extraMonthly;
+  let rate = annualRate;
+  let payment = calcMinPayment(balance, annualRate, termMonths) + extraMonthly;
   const start = toUTCDateOnly(startDate ? new Date(startDate) : new Date());
 
   let bal = balance;
@@ -93,6 +97,16 @@ function amortPI(balance, annualRate, termMonths, opts = {}) {
     }
     if (bal <= 0.005) break;
 
+    // Rate change events recast the repayment from the carried-forward
+    // balance over the remaining term, same as the IO→P&I revert recast.
+    for (const re of rateEvents) {
+      if (month === re.afterYear * 12 + 1) {
+        rate = re.rate;
+        payment = calcMinPayment(bal, rate, Math.max(1, termMonths - (month - 1))) + extraMonthly;
+      }
+    }
+
+    const dailyRate = rate / 365;
     const periodStart = addMonthsUTC(start, month - 1);
     const periodEnd = addMonthsUTC(start, month);
     const days = daysBetween(periodStart, periodEnd);
@@ -124,13 +138,14 @@ function amortPIFortnightly(balance, annualRate, termMonths, opts = {}) {
     offsetStart = 0,
     offsetMonthlyGrowth = 0,
     lumpSums = [],
+    rateEvents = [],
   } = opts;
 
-  const dailyRate = annualRate / 365;
-  const monthlyMin = calcMinPayment(balance, annualRate, termMonths);
+  let rate = annualRate;
+  let monthlyMin = calcMinPayment(balance, annualRate, termMonths);
   // Extra monthly converted to per-fortnight: extraMonthly × 12 / 26 (not ÷2)
   // so annual extra stays $extraMonthly × 12, spread over 26 fortnights
-  const fnPayment = monthlyMin / 2 + extraMonthly * 12 / 26;
+  let fnPayment = monthlyMin / 2 + extraMonthly * 12 / 26;
 
   let bal = balance;
   let offset = offsetStart;
@@ -152,6 +167,19 @@ function amortPIFortnightly(balance, annualRate, termMonths, opts = {}) {
       }
       if (bal <= 0.005) break;
 
+      // Rate change events recast the fortnightly repayment from the
+      // carried-forward balance over the remaining term.
+      for (const re of rateEvents) {
+        const eventPeriod = Math.round(re.afterYear * 26) + 1;
+        if (period === eventPeriod) {
+          rate = re.rate;
+          const remainingMonths = Math.max(1, termMonths - Math.round((period - 1) * 12 / 26));
+          monthlyMin = calcMinPayment(bal, rate, remainingMonths);
+          fnPayment = monthlyMin / 2 + extraMonthly * 12 / 26;
+        }
+      }
+
+      const dailyRate = rate / 365;
       const effectiveBal = Math.max(0, bal - offset);
       const interest = effectiveBal * dailyRate * 14;
       const principal = Math.min(bal, Math.max(0, fnPayment - interest));
@@ -186,10 +214,10 @@ function amortIO(balance, ioRate, ioPeriodYears, revertRate, piTermYears, opts =
     offsetStart = 0,
     offsetMonthlyGrowth = 0,
     lumpSums = [],
+    rateEvents = [],
     startDate,
   } = opts;
 
-  const dailyRateIO = ioRate / 365;
   const ioMonths = ioPeriodYears * 12;
   const piMonths = piTermYears * 12;
   const start = toUTCDateOnly(startDate ? new Date(startDate) : new Date());
@@ -199,6 +227,7 @@ function amortIO(balance, ioRate, ioPeriodYears, revertRate, piTermYears, opts =
   let totalInterest = 0;
   let month = 0;
   const schedule = [];
+  let rate = ioRate;
 
   // — IO phase —
   for (let i = 0; i < ioMonths && bal > 0.005; i++) {
@@ -209,6 +238,13 @@ function amortIO(balance, ioRate, ioPeriodYears, revertRate, piTermYears, opts =
     }
     if (bal <= 0.005) break;
 
+    // During IO, a rate event only changes the interest charged — there's
+    // no repayment formula to recast, IO payments are interest-only.
+    for (const re of rateEvents) {
+      if (month === re.afterYear * 12 + 1) rate = re.rate;
+    }
+
+    const dailyRateIO = rate / 365;
     const periodStart = addMonthsUTC(start, month - 1);
     const periodEnd = addMonthsUTC(start, month);
     const days = daysBetween(periodStart, periodEnd);
@@ -224,9 +260,12 @@ function amortIO(balance, ioRate, ioPeriodYears, revertRate, piTermYears, opts =
 
   if (bal <= 0.005) return { totalInterest: Math.round(totalInterest), termMonths: month, schedule };
 
-  // — P&I revert phase — recast minimum on remaining balance
-  const dailyRatePI = revertRate / 365;
-  const piPayment = calcMinPayment(bal, revertRate, piMonths) + extraMonthly;
+  // — P&I revert phase — recast minimum on remaining balance. The official
+  // revert rate always wins at the transition, even if a rate event fired
+  // during the IO phase.
+  rate = revertRate;
+  let piPayment = calcMinPayment(bal, rate, piMonths) + extraMonthly;
+  const piStartMonth = month;
 
   while (bal > 0.005 && month < (ioMonths + piMonths) * 3) {
     month++;
@@ -236,6 +275,17 @@ function amortIO(balance, ioRate, ioPeriodYears, revertRate, piTermYears, opts =
     }
     if (bal <= 0.005) break;
 
+    // Rate change events during the P&I phase recast the repayment from
+    // the carried-forward balance over the remaining P&I term.
+    for (const re of rateEvents) {
+      if (month === re.afterYear * 12 + 1) {
+        rate = re.rate;
+        const remainingMonths = Math.max(1, piMonths - (month - piStartMonth));
+        piPayment = calcMinPayment(bal, rate, remainingMonths) + extraMonthly;
+      }
+    }
+
+    const dailyRatePI = rate / 365;
     const periodStart = addMonthsUTC(start, month - 1);
     const periodEnd = addMonthsUTC(start, month);
     const days = daysBetween(periodStart, periodEnd);
@@ -378,6 +428,17 @@ const s4 = amortPI(B.balance, B.rate, B.termMonths, {
 checkDollar('Interest saved',           BASE_INTEREST - s4.totalInterest, 86_756);
 checkMonths('Loan term (27y 8m)',       s4.termMonths,  332);  // 27×12+8 = 332
 
+// ── Scenario 4b: Rate change event — hike to 7.00% after year 2 ──
+section('Scenario 4b  Rate change event: 6.25% → 7.00% after year 2 (recast)');
+
+const s4b = amortPI(B.balance, B.rate, B.termMonths, {
+  startDate: TEST_START_DATE,
+  rateEvents: [{ afterYear: 2, rate: 0.07 }],
+});
+checkDollar('Total interest after rate-hike event', s4b.totalInterest, 827_267);
+checkExact('Rate-hike event increases total interest vs base (no-event) loan',
+  s4b.totalInterest > BASE_INTEREST ? 1 : 0, 1, 0);
+
 // ── Scenario 5: Salary offset ($4k avg) ─────────────────────
 section('Scenario 5  Salary $8k/mo, 15 days parked → $4k avg offset');
 
@@ -514,6 +575,31 @@ const rcNewMin = calcMinPayment(rcBal, 0.07, rcRemaining);
 checkExact('Recast min payment at 7% > original min at 6.25%',
   rcNewMin > rcPay1 ? 1 : 0, 1, 0);
 checkExact('Remaining term after recast is 348 months', rcRemaining, 348, 0);
+
+// ── Rate change events — engine wiring (regression) ──────────
+section('Rate change events — amortPI(rateEvents) actually recasts the repayment');
+
+// Baseline (no rate event) sources the ACT/365-consistent carried-forward
+// balance the event should recast from — the manual monthly-rest recast
+// above is illustrative only, it doesn't share the engine's daily-accrual
+// convention, so its rcBal won't exactly match a real amortPI balance.
+const rcEnginePlain = amortPI(B.balance, B.rate, B.termMonths, { startDate: TEST_START_DATE, buildSchedule: true });
+const rcEngineBalanceAtChange = rcEnginePlain.schedule.find(r => r.month === 12).balance;
+const rcEngineRemaining = B.termMonths - 12;
+const rcEngineExpectedPayment = calcMinPayment(rcEngineBalanceAtChange, 0.07, rcEngineRemaining);
+
+const rcEngine = amortPI(B.balance, B.rate, B.termMonths, {
+  startDate: TEST_START_DATE,
+  rateEvents: [{ afterYear: 1, rate: 0.07 }],
+  buildSchedule: true,
+});
+const rcEventRow = rcEngine.schedule.find(r => r.month === 13);
+const rcEnginePayment = rcEventRow.interest + rcEventRow.principal;
+
+checkDollar('Payment right after the event matches carried-forward-balance recast formula',
+  rcEnginePayment, rcEngineExpectedPayment);
+checkExact('Engine total interest with rate-hike event exceeds base (no-event) interest',
+  rcEngine.totalInterest > BASE_INTEREST ? 1 : 0, 1, 0);
 
 // ── Investment property — negative gearing ───────────────────
 section('Investment property — negative gearing formula');
