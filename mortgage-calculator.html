@@ -159,6 +159,12 @@ main { max-width: 1100px; margin: 0 auto; padding: 24px 16px 60px; }
   height: 34px; padding: 0 8px; border: 1px solid var(--border);
   border-radius: 5px; font-size: 13px; background: var(--white); flex: 1;
 }
+/* Higher specificity than ".list-item input" so the $ /% prefix-suffix
+   padding isn't overridden down to 8px, which let the symbol render
+   on top of the adjacent digit (e.g. "$" overlapping the "2" in
+   "$20,000" in Lump Sum Injections). */
+.list-item .input-prefix input { padding-left: 22px; }
+.list-item .input-suffix input { padding-right: 28px; }
 .list-item input:focus { outline: none; border-color: var(--g600); }
 .list-item label { font-size: 12px; color: var(--muted); white-space: nowrap; }
 .btn-remove {
@@ -304,6 +310,33 @@ tfoot td:first-child { text-align: left; }
 .hidden { display: none !important; }
 .text-success { color: var(--g800); font-weight: 600; }
 .text-danger  { color: var(--danger); font-weight: 600; }
+
+/* ── Loyalty-gap callout ──────────────────────────────── */
+.loyalty-callout {
+  background: var(--g50); border: 1px solid var(--g400);
+  border-radius: 10px; padding: 18px 22px; margin-bottom: 16px;
+}
+.loyalty-callout-title { font-size: 14px; font-weight: 700; color: var(--g900); margin-bottom: 8px; }
+.loyalty-callout-body { font-size: 13.5px; color: var(--text-light); line-height: 1.6; }
+.figure-source-note { font-size: 11.5px; color: var(--muted); margin-top: 8px; }
+
+/* ── Cross-promotion ───────────────────────────────────── */
+.cross-promo {
+  display: flex; align-items: center; gap: 14px;
+  background: var(--white); border: 1px dashed var(--g600);
+  border-radius: 10px; padding: 16px 20px; margin-top: 8px;
+}
+.cross-promo .icon { font-size: 24px; }
+.cross-promo a { color: var(--g800); font-weight: 600; }
+
+/* ── Disclaimer / compliance footer ───────────────────── */
+.site-footer { max-width: 1100px; margin: 0 auto; padding: 0 16px 40px; }
+.disclaimer {
+  font-size: 12px; color: var(--muted); line-height: 1.5;
+  background: var(--g50); border: 1px solid var(--border);
+  border-radius: 8px; padding: 14px 18px;
+}
+.disclaimer strong { color: var(--text); }
 </style>
 </head>
 <body>
@@ -762,6 +795,12 @@ tfoot td:first-child { text-align: left; }
     </div>
   </div>
 
+  <!-- What loyalty could be costing you -->
+  <div class="loyalty-callout">
+    <div class="loyalty-callout-title">What loyalty could be costing you</div>
+    <div class="loyalty-callout-body" id="loyalty-callout-body">Calculate to see this estimate.</div>
+  </div>
+
   <!-- Balance over time chart -->
   <div class="chart-wrap">
     <div class="chart-title">Balance Over Time</div>
@@ -869,6 +908,15 @@ tfoot td:first-child { text-align: left; }
       </svg>
       <p>No results yet</p>
       <small>Set up your loan and click Calculate</small>
+    </div>
+  </div>
+
+  <!-- Cross-promotion -->
+  <div class="cross-promo">
+    <div class="icon">💳</div>
+    <div>
+      Carrying credit card debt too? <a href="../Credit%20Card%20Reduction%20Calculator/credit-card-calculator.html">Try our Credit Card Reduction Calculator</a>
+      <!-- Placeholder relative path — update once both calculators are hosted at a shared URL. -->
     </div>
   </div>
 
@@ -1069,6 +1117,19 @@ tfoot td:first-child { text-align: left; }
 
 </main><!-- /main -->
 
+<!-- ═══ COMPLIANCE FOOTER ════════════════════════════════ -->
+<footer class="site-footer">
+  <div class="disclaimer">
+    <strong>Disclaimer.</strong> This information is factual and general in nature. It does not take into
+    account your personal objectives, financial situation or needs, and is not personal financial or credit
+    advice. It does not recommend or promote any specific bank, lender, or loan product. The "loyalty could
+    be costing you" estimate uses a national average figure from a cited source (see the Results tab) — it
+    describes typical outcomes across the market, not a promise about your own situation, and individual
+    results will vary. Speak with a licensed financial adviser or mortgage broker before refinancing,
+    switching, or making a borrowing decision.
+  </div>
+</footer>
+
 <script>
 'use strict';
 
@@ -1242,6 +1303,27 @@ function loanFreeDate(termMonths) {
   const d = new Date();
   d.setMonth(d.getMonth() + termMonths);
   return d.toLocaleDateString('en-AU', { month: 'long', year: 'numeric' });
+}
+
+// ── Loyalty-gap figure ───────────────────────────────────────────
+// Canonical source: My Life Sorted Budget app, lib/figures/config.ts
+// → MORTGAGE_LOYALTY_FIGURE (ACCC Home Loan Price Inquiry, 2020), also
+// shown on the Budget app's /methodology page. Duplicated here because
+// this is a standalone static file with no shared import — if the
+// canonical figure is ever updated, this copy needs updating by hand.
+const MORTGAGE_LOYALTY_GAP = {
+  bands: [
+    { label: 'less than 1 year',   minYears: 0,  maxYears: 1,    ratePremiumPoints: 0.29 },
+    { label: '1–3 years',          minYears: 1,  maxYears: 3,    ratePremiumPoints: 0.47 },
+    { label: '3–5 years',          minYears: 3,  maxYears: 5,    ratePremiumPoints: 0.58 },
+    { label: '5–10 years',         minYears: 5,  maxYears: 10,   ratePremiumPoints: 0.71 },
+    { label: 'more than 10 years', minYears: 10, maxYears: null, ratePremiumPoints: 1.04 },
+  ],
+  source: 'ACCC Home Loan Price Inquiry',
+  sourceDate: '2020 (no repeat inquiry since — treat as dated)',
+};
+function getMortgageLoyaltyBand(years) {
+  return MORTGAGE_LOYALTY_GAP.bands.find(b => years >= b.minYears && (b.maxYears === null || years < b.maxYears));
 }
 
 function buildYearlyBalances(schedule, totalTermMonths) {
@@ -1812,6 +1894,7 @@ function renderResults(inp, base, strat, balance, rate, termMonths) {
     sensSection.classList.add('hidden');
   }
 
+  renderLoyaltyCallout(inp, balance);
   renderSchedule();
 }
 
@@ -1855,6 +1938,40 @@ function renderBreakdownChart(inp, base, balance, rate, termMonths) {
     [{ data: savedResults.map(r => Math.max(0, r.saved)), backgroundColor: savedResults.map(() => COLORS.g600 || COLORS.base), borderRadius: 4 }],
     savedResults.map(r => r.label),
   );
+}
+
+// ── Loyalty-gap callout ───────────────────────────────────
+// Personalised (balance × band gap for the loan's actual age) only
+// for the 'pi' loan type, which is the only one that collects a
+// direct "Years Elapsed" input — other loan types fall back to the
+// same real, sourced figure without a computed dollar amount rather
+// than guessing an age for balances that don't have one.
+function renderLoyaltyCallout(inp, balance) {
+  const el = document.getElementById('loyalty-callout-body');
+  if (inp.type === 'pi') {
+    const band = getMortgageLoyaltyBand(inp.elapsed || 0);
+    const extraCost = balance * (band.ratePremiumPoints / 100);
+    el.innerHTML = `
+      Borrowers whose loan is ${band.label} old typically pay about
+      <strong>${band.ratePremiumPoints} percentage points</strong> more than a borrower who refinanced or
+      renegotiated recently. On a ${fmt$(balance)} loan, that gap is worth roughly
+      <strong>${fmt$(extraCost)}/yr</strong>.
+      <div class="figure-source-note">
+        Source: ${MORTGAGE_LOYALTY_GAP.source}, ${MORTGAGE_LOYALTY_GAP.sourceDate}. This is a national
+        average, not a quote for any specific lender — your own rate and situation will differ.
+      </div>
+    `;
+  } else {
+    el.innerHTML = `
+      Borrowers who haven't refinanced or renegotiated in years typically pay <strong>0.29–1.04 percentage
+      points</strong> more than more recently-switched borrowers, depending on how long the loan has been
+      held.
+      <div class="figure-source-note">
+        Source: ${MORTGAGE_LOYALTY_GAP.source}, ${MORTGAGE_LOYALTY_GAP.sourceDate}. This is a national
+        average, not a quote for any specific lender — your own rate and situation will differ.
+      </div>
+    `;
+  }
 }
 
 // ── Refinance ────────────────────────────────────────────
