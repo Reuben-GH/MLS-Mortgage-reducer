@@ -37,6 +37,13 @@ header {
 }
 .header-title { font-size: 17px; font-weight: 600; letter-spacing: -.2px; }
 .header-sub   { font-size: 12px; color: var(--g400); margin-top: 1px; }
+.btn-reset {
+  margin-left: auto; background: none; border: 1px solid rgba(255,255,255,.3);
+  color: var(--white); border-radius: 7px; padding: 7px 14px;
+  font-size: 13px; font-weight: 500; cursor: pointer; flex-shrink: 0;
+  transition: background .15s;
+}
+.btn-reset:hover { background: rgba(255,255,255,.12); }
 
 /* ── Tab bar ──────────────────────────────────────────── */
 .tab-bar {
@@ -324,6 +331,8 @@ tfoot td:first-child { text-align: left; }
   main   { padding: 16px 12px 60px; }
   .loan-type-grid { grid-template-columns: repeat(2, 1fr); }
   .metric-value { font-size: 22px; }
+  .header-sub { display: none; }
+  .btn-reset { padding: 6px 10px; font-size: 12px; }
 }
 
 /* ── IO field groups ──────────────────────────────────── */
@@ -374,6 +383,7 @@ tfoot td:first-child { text-align: left; }
     <div class="header-title">My Life Sorted</div>
     <div class="header-sub">Mortgage Reduction Calculator</div>
   </div>
+  <button class="btn-reset" id="btn-reset" type="button" title="Clear all values and start again">↺ Reset</button>
 </header>
 
 <!-- ═══ TAB BAR ══════════════════════════════════════════ -->
@@ -2918,6 +2928,16 @@ document.getElementById('btn-calculate').addEventListener('click', () => {
 });
 
 document.getElementById('btn-goto-strategies').addEventListener('click', () => switchToTab('strategies'));
+
+// A reload is the most reliable "reset" — every field, portion,
+// lump sum row, and rate event is just the page's starting HTML with
+// nothing saved anywhere, so a reload is guaranteed to clear all of
+// it in one go rather than needing a hand-written reset for every
+// individual field, toggle, and dynamic row (and every one added in
+// future).
+document.getElementById('btn-reset').addEventListener('click', () => {
+  if (confirm('Reset all values and start again?')) location.reload();
+});
 
 document.getElementById('btn-run-all').addEventListener('click', () => {
   calculate();
