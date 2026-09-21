@@ -1280,6 +1280,25 @@ tfoot td:first-child { text-align: left; }
 'use strict';
 
 // ═══════════════════════════════════════════════════════════
+// FIELD DEFAULTS (captured once, for the Reset button)
+// ═══════════════════════════════════════════════════════════
+// A reload-based reset turned out to be unreliable in practice —
+// Chrome/Safari/Firefox can restore exactly what the user had typed
+// even across a "new" navigation, so a browser-refresh trick isn't
+// guaranteed. This instead snapshots every statically-present,
+// id'd field's value right now, before any user interaction is
+// possible, and restores from that snapshot directly — no
+// reload/navigation involved at all, so no browser behaviour to
+// fight. Only fields with a stable id are captured here (dynamic
+// list rows — lump sums, rate events, portions — don't have one;
+// resetAll() clears and rebuilds those separately, reusing the same
+// functions and default arguments already used on page load).
+const FIELD_DEFAULTS = new Map();
+document.querySelectorAll('input[id], select[id]').forEach(el => {
+  FIELD_DEFAULTS.set(el, el.type === 'checkbox' ? el.checked : el.value);
+});
+
+// ═══════════════════════════════════════════════════════════
 // CALCULATION ENGINE (mirrors tests.js)
 // ═══════════════════════════════════════════════════════════
 
@@ -2929,18 +2948,77 @@ document.getElementById('btn-calculate').addEventListener('click', () => {
 
 document.getElementById('btn-goto-strategies').addEventListener('click', () => switchToTab('strategies'));
 
-// A plain location.reload() is undone by a browser feature that
-// restores exactly what the user had typed (Chrome/Safari/Firefox all
-// do this on refresh, to protect against losing work by accident) —
-// harmless for a normal page reload, but defeats a deliberate reset.
-// Navigating to a freshly-querystringed URL instead is treated as new
-// navigation, not "restore my edits", so it genuinely loads the
-// page's original defaults. replace() (not href=) also means Back
-// can't return to the dirty state.
+// Explicit, deterministic reset — no reload/navigation involved, so
+// there's no browser form-restore behaviour left to fight. Restores
+// every statically-present field from the FIELD_DEFAULTS snapshot,
+// rebuilds the dynamic lists (lump sums, rate events, portions) from
+// scratch using the same functions and defaults already used on page
+// load, and puts every toggle/tab/chart back to its starting state.
+function resetAll() {
+  FIELD_DEFAULTS.forEach((value, el) => {
+    if (el.type === 'checkbox') el.checked = value;
+    else el.value = value;
+  });
+
+  document.getElementById('rate-events-list').innerHTML = '';
+
+  document.getElementById('lump-list').innerHTML = '';
+  addLumpRow();
+
+  document.getElementById('portions-list').innerHTML = '';
+  addPortionRow('Home', 'pi', { balance: 550000, rate: 6.1, term: 30 });
+  addPortionRow('Car', 'pi', { balance: 28000, rate: 6.5, term: 7 });
+
+  document.querySelectorAll('.loan-type-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.loan-fields').forEach(f => f.classList.remove('active'));
+  document.querySelector('.loan-type-btn[data-type="pi"]').classList.add('active');
+  document.getElementById('fields-pi').classList.add('active');
+  currentLoanType = 'pi';
+  document.querySelectorAll('.apply-to-row').forEach(el => el.classList.add('hidden'));
+  document.getElementById('strategy-refinance').classList.remove('hidden');
+  document.getElementById('strategy-ratesens').classList.remove('hidden');
+
+  const defaultStrategyState = { extra: true, offset: true, fortnightly: true, lump: true, salary: false, refinance: false, ratesens: false };
+  Object.keys(defaultStrategyState).forEach(key => {
+    strategyState[key] = defaultStrategyState[key];
+    document.getElementById('toggle-' + key).classList.toggle('on', strategyState[key]);
+    document.getElementById('body-' + key).classList.toggle('hidden', !strategyState[key]);
+  });
+
+  ['property', 'shares'].forEach(key => {
+    document.getElementById('toggle-' + key).classList.remove('on');
+    const body = document.getElementById('body-' + key);
+    body.classList.add('hidden');
+    body.querySelectorAll('input, select').forEach(el => el.disabled = true);
+  });
+  document.getElementById('prop-results').classList.add('hidden');
+  document.getElementById('shares-results').classList.add('hidden');
+
+  document.getElementById('compare-error').textContent = '';
+  ['section-refinance', 'section-ratesens', 'section-compare', 'section-portions'].forEach(id =>
+    document.getElementById(id).classList.add('hidden')
+  );
+  ['placeholder-balance', 'placeholder-breakdown', 'placeholder-annual'].forEach(id =>
+    document.getElementById(id).classList.remove('hidden')
+  );
+  document.getElementById('results-placeholder').classList.remove('hidden');
+
+  document.getElementById('schedule-placeholder').classList.remove('hidden');
+  document.getElementById('schedule-table-wrap').classList.add('hidden');
+  document.getElementById('sched-portion-wrap').classList.add('hidden');
+  schedView = 'base';
+  schedPeriod = 'annual';
+  document.querySelectorAll('#sched-view-toggle .toggle-opt').forEach(b => b.classList.toggle('active', b.dataset.sview === 'base'));
+  document.querySelectorAll('#sched-period-toggle .toggle-opt').forEach(b => b.classList.toggle('active', b.dataset.speriod === 'annual'));
+
+  Object.keys(charts).forEach(destroyChart);
+  lastResults = null;
+
+  switchToTab('setup');
+}
+
 document.getElementById('btn-reset').addEventListener('click', () => {
-  if (confirm('Reset all values and start again?')) {
-    location.replace(location.pathname + '?reset=' + Date.now());
-  }
+  if (confirm('Reset all values and start again?')) resetAll();
 });
 
 document.getElementById('btn-run-all').addEventListener('click', () => {
