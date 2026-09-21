@@ -303,25 +303,32 @@ function amortIO(balance, ioRate, ioPeriodYears, revertRate, piTermYears, opts =
 }
 
 // Combines any number of per-period schedules into one, month by
-// month, summing interest/principal/balance/cumInterest. Mirrors
+// month, summing interest/principal/balance. Mirrors
 // mortgage-calculator.html's mergeSchedules() — used for Split Loan
-// (2 portions) and Multiple Portions (N portions) alike.
+// (2 portions) and Multiple Portions (N portions) alike. cumInterest
+// is a running total, so a finished portion must keep contributing
+// its own final cumInterest to every later month rather than dropping
+// out of the sum once it has no more entries.
 function mergeSchedules(schedules) {
   const byMonth = new Map();
   for (const schedule of schedules) {
     for (const entry of schedule) {
-      const row = byMonth.get(entry.month) || { month: entry.month, interest: 0, principal: 0, balance: 0, cumInterest: 0 };
-      row.interest    += entry.interest;
-      row.principal   += entry.principal;
-      row.balance     += entry.balance;
-      row.cumInterest += entry.cumInterest;
+      const row = byMonth.get(entry.month) || { month: entry.month, interest: 0, principal: 0, balance: 0 };
+      row.interest  += entry.interest;
+      row.principal += entry.principal;
+      row.balance   += entry.balance;
       byMonth.set(entry.month, row);
     }
   }
   const maxMonth = Math.max(0, ...schedules.map(s => s.length ? s[s.length - 1].month : 0));
   const merged = [];
   for (let m = 1; m <= maxMonth; m++) {
-    merged.push(byMonth.get(m) || { month: m, interest: 0, principal: 0, balance: 0, cumInterest: 0 });
+    const row = byMonth.get(m) || { month: m, interest: 0, principal: 0, balance: 0 };
+    row.cumInterest = schedules.reduce((sum, s) => {
+      if (s.length === 0) return sum;
+      return sum + s[Math.min(m, s.length) - 1].cumInterest;
+    }, 0);
+    merged.push(row);
   }
   return merged;
 }
@@ -584,6 +591,15 @@ checkDollar(`month ${afterFamily} balance excludes the already-finished Mum & Da
 const afterCar = mpCar.schedule.length + 1;
 const afterCarExpected = mpHome.schedule[afterCar - 1].balance;
 checkDollar(`month ${afterCar} balance is Home alone (Car and Mum & Dad both finished)`, mpMerged[afterCar - 1].balance, afterCarExpected);
+
+// cumInterest is a running total, unlike balance/interest/principal —
+// a finished portion must keep contributing its own final cumInterest
+// to every later month rather than dropping out of the sum. Checked
+// at the very last merged month, well after Car and Mum & Dad have
+// both finished, against the hand-summed combined total.
+const lastMonth = mpMerged.length;
+const lastExpected = mpHome.totalInterest + mpCar.totalInterest + mpFamily.totalInterest;
+checkDollar('final month\'s merged cumInterest equals the sum of all 3 portions\' totalInterest (finished portions still contribute)', mpMerged[lastMonth - 1].cumInterest, lastExpected);
 
 // ── Fortnightly formula unit test ────────────────────────────
 section('Fortnightly half-monthly formula — unit test');

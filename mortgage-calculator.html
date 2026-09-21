@@ -2285,24 +2285,34 @@ function mergeSchedules(schedules) {
   // schedule (O(total rows)), rather than an .find() scan per month per
   // schedule (quadratic) — the old 2-argument version got away with
   // that since there were only ever two schedules; worth fixing now
-  // that there can be as many as there are portions. A schedule that's
-  // already finished contributes nothing to later months, same as
-  // before — it simply has no entries left to add.
+  // that there can be as many as there are portions. interest/
+  // principal/balance stop contributing once a schedule has no more
+  // entries, same as before. cumInterest is different — it's a running
+  // total, so a finished portion must keep contributing its own final
+  // cumInterest to every later month rather than dropping out of the
+  // sum (otherwise "Cum. Interest" would understate once any one
+  // portion pays off early). Each schedule's entries are indexed by
+  // month with no gaps, so this is a direct array lookup, not a
+  // per-month .find().
   const byMonth = new Map();
   for (const schedule of schedules) {
     for (const entry of schedule) {
-      const row = byMonth.get(entry.month) || { month: entry.month, interest: 0, principal: 0, balance: 0, cumInterest: 0 };
-      row.interest    += entry.interest;
-      row.principal   += entry.principal;
-      row.balance     += entry.balance;
-      row.cumInterest += entry.cumInterest;
+      const row = byMonth.get(entry.month) || { month: entry.month, interest: 0, principal: 0, balance: 0 };
+      row.interest  += entry.interest;
+      row.principal += entry.principal;
+      row.balance   += entry.balance;
       byMonth.set(entry.month, row);
     }
   }
   const maxMonth = Math.max(0, ...schedules.map(s => s.length ? s[s.length - 1].month : 0));
   const merged = [];
   for (let m = 1; m <= maxMonth; m++) {
-    merged.push(byMonth.get(m) || { month: m, interest: 0, principal: 0, balance: 0, cumInterest: 0 });
+    const row = byMonth.get(m) || { month: m, interest: 0, principal: 0, balance: 0 };
+    row.cumInterest = schedules.reduce((sum, s) => {
+      if (s.length === 0) return sum;
+      return sum + s[Math.min(m, s.length) - 1].cumInterest;
+    }, 0);
+    merged.push(row);
   }
   return merged;
 }
