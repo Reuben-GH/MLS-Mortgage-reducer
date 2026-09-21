@@ -570,7 +570,7 @@ tfoot td:first-child { text-align: left; }
 <div id="tab-strategies" class="tab-panel">
 
   <div style="font-size:13px;color:var(--muted);margin-bottom:14px;">
-    Toggle strategies on or off, then click Calculate (or use the button below).
+    Toggle strategies on or off, then click "Run All Scenarios &amp; View Results" below.
     All active strategies are combined in the Results tab.
   </div>
 
@@ -761,7 +761,6 @@ tfoot td:first-child { text-align: left; }
 
   <div class="calc-bar mt16">
     <button class="btn-primary" id="btn-run-all">Run All Scenarios &amp; View Results</button>
-    <button class="btn-secondary" id="btn-calculate-2">Calculate</button>
   </div>
 
   <!-- Compare two strategies head-to-head -->
@@ -2481,11 +2480,6 @@ document.getElementById('btn-calculate').addEventListener('click', () => {
 });
 
 document.getElementById('btn-goto-strategies').addEventListener('click', () => switchToTab('strategies'));
-
-document.getElementById('btn-calculate-2').addEventListener('click', () => {
-  calculate();
-  switchToTab('results');
-});
 
 document.getElementById('btn-run-all').addEventListener('click', () => {
   calculate();
