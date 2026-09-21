@@ -102,7 +102,7 @@ main { max-width: 1100px; margin: 0 auto; padding: 24px 16px 60px; }
 
 /* ── Loan type selector ───────────────────────────────── */
 .loan-type-grid {
-  display: grid; grid-template-columns: repeat(4, 1fr);
+  display: grid; grid-template-columns: repeat(5, 1fr);
   gap: 10px; margin-bottom: 20px;
 }
 .loan-type-btn {
@@ -117,6 +117,31 @@ main { max-width: 1100px; margin: 0 auto; padding: 24px 16px 60px; }
   color: var(--g900); font-weight: 600;
 }
 .loan-type-btn .type-icon { font-size: 20px; display: block; margin-bottom: 4px; }
+
+/* ── Multiple Portions ────────────────────────────────── */
+.portion-card {
+  background: var(--white); border: 1px solid var(--border);
+  border-radius: 10px; padding: 14px 16px; margin-bottom: 12px;
+}
+.portion-card-head { display: flex; align-items: center; gap: 10px; }
+.portion-name {
+  flex: 1; height: 36px; padding: 0 10px; border: 1px solid var(--border);
+  border-radius: 6px; font-size: 14px; font-weight: 600; color: var(--g900);
+  background: var(--white); font-family: inherit;
+}
+.portion-name:focus { outline: none; border-color: var(--g600); }
+.portion-type {
+  height: 36px; padding: 0 8px; border: 1px solid var(--border);
+  border-radius: 6px; font-size: 13px; background: var(--white); color: var(--text);
+  font-family: inherit;
+}
+.apply-to-row { margin-top: 8px; }
+.list-item .apply-to-row { margin-top: 0; } /* inline within a flex row, not stacked below it */
+.apply-to-row select {
+  height: 34px; padding: 0 8px; border: 1px solid var(--border);
+  border-radius: 5px; font-size: 13px; background: var(--white); color: var(--text);
+  font-family: inherit;
+}
 
 /* ── Strategy toggle rows ────────────────────────────── */
 .strategy-card {
@@ -172,6 +197,7 @@ main { max-width: 1100px; margin: 0 auto; padding: 24px 16px 60px; }
   cursor: pointer; font-size: 18px; line-height: 1;
   padding: 0 4px; flex-shrink: 0;
 }
+.btn-remove:disabled { opacity: .3; cursor: not-allowed; }
 .btn-add {
   background: none; border: 1px dashed var(--g600); color: var(--g800);
   border-radius: 6px; padding: 7px 14px; font-size: 13px; cursor: pointer;
@@ -382,6 +408,9 @@ tfoot td:first-child { text-align: left; }
       <button class="loan-type-btn" data-type="loc">
         <span class="type-icon">💳</span>Line of Credit
       </button>
+      <button class="loan-type-btn" data-type="portions">
+        <span class="type-icon">🧩</span>Multiple Portions
+      </button>
     </div>
 
     <!-- P&I fields -->
@@ -545,6 +574,17 @@ tfoot td:first-child { text-align: left; }
         </div>
       </div>
     </div>
+
+    <!-- Multiple Portions fields -->
+    <div id="fields-portions" class="loan-fields">
+      <p style="font-size:12px;color:var(--muted);margin-bottom:12px;">
+        For a mortgage that's really more than one debt at once — a car portion folded into a
+        refinance, an informal family loan sitting alongside the home loan. Each portion is worked
+        out independently and then combined.
+      </p>
+      <div id="portions-list"></div>
+      <button class="btn-add" id="add-portion" type="button">+ Add Portion</button>
+    </div>
   </div><!-- /loan type card -->
 
   <!-- Rate change events -->
@@ -598,6 +638,10 @@ tfoot td:first-child { text-align: left; }
           </select>
         </div>
       </div>
+      <div class="apply-to-row hidden">
+        <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:4px;">Apply to</label>
+        <select class="apply-to-portion" data-strategy="extra"></select>
+      </div>
     </div>
   </div>
 
@@ -623,6 +667,10 @@ tfoot td:first-child { text-align: left; }
           </div>
         </div>
       </div>
+      <div class="apply-to-row hidden">
+        <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:4px;">Apply to</label>
+        <select class="apply-to-portion" data-strategy="offset"></select>
+      </div>
     </div>
   </div>
 
@@ -638,6 +686,12 @@ tfoot td:first-child { text-align: left; }
         Uses the <strong>half-monthly method</strong>: pays monthly÷2 every fortnight,
         making 13 full monthly payments per year. Only available when base frequency is monthly.
       </p>
+      <div class="apply-to-row hidden">
+        <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:4px;">
+          Apply to (Principal &amp; Interest portions only)
+        </label>
+        <select class="apply-to-portion" data-strategy="fortnightly" data-pi-only="true"></select>
+      </div>
     </div>
   </div>
 
@@ -679,11 +733,15 @@ tfoot td:first-child { text-align: left; }
       <p style="font-size:12px;color:var(--muted);margin-top:8px;">
         Average offset contribution = salary × (days ÷ 30). Added to starting offset balance.
       </p>
+      <div class="apply-to-row hidden">
+        <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:4px;">Apply to</label>
+        <select class="apply-to-portion" data-strategy="salary"></select>
+      </div>
     </div>
   </div>
 
   <!-- 6. Refinance -->
-  <div class="strategy-card">
+  <div class="strategy-card" id="strategy-refinance">
     <div class="strategy-header" data-strategy="refinance">
       <div class="strategy-toggle" id="toggle-refinance"></div>
       <div class="strategy-label">Refinance Scenario</div>
@@ -735,7 +793,7 @@ tfoot td:first-child { text-align: left; }
   </div>
 
   <!-- 7. Rate sensitivity -->
-  <div class="strategy-card">
+  <div class="strategy-card" id="strategy-ratesens">
     <div class="strategy-header" data-strategy="ratesens">
       <div class="strategy-toggle" id="toggle-ratesens"></div>
       <div class="strategy-label">Rate Sensitivity Analysis</div>
@@ -953,6 +1011,25 @@ tfoot td:first-child { text-align: left; }
     </div>
   </div>
 
+  <!-- Portion summary (shown for Multiple Portions loans) -->
+  <div id="section-portions" class="hidden">
+    <div class="result-section-title">Portion Summary</div>
+    <div style="overflow-x:auto;">
+      <table class="ledger">
+        <thead>
+          <tr>
+            <th>Portion</th><th>Type</th>
+            <th style="text-align:right">Balance</th><th style="text-align:right">Rate</th>
+            <th style="text-align:right">Total Interest</th><th style="text-align:right">Interest Saved</th>
+            <th style="text-align:right">Term</th>
+          </tr>
+        </thead>
+        <tbody id="portions-summary-tbody"></tbody>
+        <tfoot id="portions-summary-tfoot"></tfoot>
+      </table>
+    </div>
+  </div>
+
   <!-- No-results placeholder -->
   <div id="results-placeholder" class="card">
     <div class="placeholder-msg" style="min-height:160px;">
@@ -989,6 +1066,12 @@ tfoot td:first-child { text-align: left; }
     <div class="toggle-row" id="sched-period-toggle">
       <button class="toggle-opt active" data-speriod="annual">Annual Summary</button>
       <button class="toggle-opt"        data-speriod="period">Period Detail</button>
+    </div>
+    <div class="form-group hidden" id="sched-portion-wrap" style="min-width:160px;">
+      <label style="font-size:12px;color:var(--muted);">Portion</label>
+      <select id="sched-portion-select">
+        <option value="">Combined</option>
+      </select>
     </div>
   </div>
 
@@ -1470,6 +1553,15 @@ document.querySelectorAll('.loan-type-btn').forEach(btn => {
     btn.classList.add('active');
     currentLoanType = btn.dataset.type;
     document.getElementById('fields-' + currentLoanType).classList.add('active');
+
+    // "Apply to portion" selectors only make sense once there's more
+    // than one portion, and Refinance/Rate Sensitivity don't mean
+    // anything once portions can have different rates independently.
+    const isPortions = currentLoanType === 'portions';
+    document.querySelectorAll('.apply-to-row').forEach(el => el.classList.toggle('hidden', !isPortions));
+    document.getElementById('strategy-refinance').classList.toggle('hidden', isPortions);
+    document.getElementById('strategy-ratesens').classList.toggle('hidden', isPortions);
+    if (isPortions) refreshPortionSelectors();
   });
 });
 
@@ -1516,6 +1608,7 @@ function addLumpRow(afterYear = 1, amount = 20000) {
   const row = document.createElement('div');
   row.className = 'list-item';
   row.dataset.lumpId = id;
+  const portionsMode = currentLoanType === 'portions';
   row.innerHTML = `
     <label>After year</label>
     <input type="number" class="lump-year" value="${afterYear}" min="0" max="30" step="1" style="max-width:70px">
@@ -1523,10 +1616,13 @@ function addLumpRow(afterYear = 1, amount = 20000) {
     <div class="input-prefix" style="flex:1"><span>$</span>
       <input type="number" class="lump-amount" value="${amount}" min="0" step="1000">
     </div>
+    <label class="apply-to-row${portionsMode ? '' : ' hidden'}">Portion</label>
+    <select class="apply-to-portion apply-to-row${portionsMode ? '' : ' hidden'}" data-strategy="lump" style="max-width:120px;"></select>
     <button class="btn-remove" title="Remove">×</button>
   `;
   row.querySelector('.btn-remove').addEventListener('click', () => row.remove());
   document.getElementById('lump-list').appendChild(row);
+  if (portionsMode) refreshPortionSelectors();
 }
 
 document.getElementById('add-lump').addEventListener('click', () => addLumpRow());
@@ -1536,6 +1632,7 @@ function getLumpSums() {
   return [...document.querySelectorAll('#lump-list .list-item')].map(row => ({
     afterYear: +row.querySelector('.lump-year').value,
     amount:    +row.querySelector('.lump-amount').value,
+    portionId: row.querySelector('.apply-to-portion')?.value || null,
   }));
 }
 
@@ -1581,6 +1678,154 @@ function getRateEvents() {
 }
 
 // ═══════════════════════════════════════════════════════════
+// MULTIPLE PORTIONS
+// ═══════════════════════════════════════════════════════════
+
+let portionCounter = 0;
+
+function addPortionRow(name, type, fields = {}) {
+  portionCounter++;
+  const id = 'portion-' + portionCounter;
+  const row = document.createElement('div');
+  row.className = 'portion-card';
+  row.dataset.portionId = id;
+  row.innerHTML = `
+    <div class="portion-card-head">
+      <input type="text" class="portion-name" value="${name}" placeholder="Portion name" maxlength="30">
+      <select class="portion-type">
+        <option value="pi" ${type === 'pi' ? 'selected' : ''}>Principal &amp; Interest</option>
+        <option value="io" ${type === 'io' ? 'selected' : ''}>Interest Only</option>
+      </select>
+      <button class="btn-remove" title="Remove portion">×</button>
+    </div>
+    <div class="portion-fields-pi form-grid mt8${type === 'io' ? ' hidden' : ''}">
+      <div class="form-group">
+        <label>Balance</label>
+        <div class="input-prefix"><span>$</span>
+          <input type="number" class="portion-pi-balance" value="${fields.balance ?? 400000}" min="0" step="1000">
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Rate</label>
+        <div class="input-suffix"><span>%</span>
+          <input type="number" class="portion-pi-rate" value="${fields.rate ?? 6.25}" min="0" max="30" step="0.05">
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Term</label>
+        <div class="input-suffix"><span>yrs</span>
+          <input type="number" class="portion-pi-term" value="${fields.term ?? 30}" min="1" max="40" step="1">
+        </div>
+      </div>
+    </div>
+    <div class="portion-fields-io form-grid mt8${type === 'pi' ? ' hidden' : ''}">
+      <div class="form-group">
+        <label>IO Balance</label>
+        <div class="input-prefix"><span>$</span>
+          <input type="number" class="portion-io-balance" value="${fields.ioBalance ?? 200000}" min="0" step="1000">
+        </div>
+      </div>
+      <div class="form-group">
+        <label>IO Rate</label>
+        <div class="input-suffix"><span>%</span>
+          <input type="number" class="portion-io-rate" value="${fields.ioRate ?? 6.75}" min="0" max="30" step="0.05">
+        </div>
+      </div>
+      <div class="form-group">
+        <label>IO Period</label>
+        <div class="input-suffix"><span>yrs</span>
+          <input type="number" class="portion-io-period" value="${fields.ioPeriod ?? 5}" min="1" max="20" step="1">
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Revert Rate</label>
+        <div class="input-suffix"><span>%</span>
+          <input type="number" class="portion-io-revert" value="${fields.ioRevert ?? 6.5}" min="0" max="30" step="0.05">
+        </div>
+      </div>
+      <div class="form-group">
+        <label>P&amp;I Term After IO</label>
+        <div class="input-suffix"><span>yrs</span>
+          <input type="number" class="portion-io-piterm" value="${fields.ioPiTerm ?? 25}" min="1" max="40" step="1">
+        </div>
+      </div>
+    </div>
+  `;
+
+  row.querySelector('.portion-type').addEventListener('change', (e) => {
+    const isIO = e.target.value === 'io';
+    row.querySelector('.portion-fields-pi').classList.toggle('hidden', isIO);
+    row.querySelector('.portion-fields-io').classList.toggle('hidden', !isIO);
+    refreshPortionSelectors();
+  });
+  row.querySelector('.portion-name').addEventListener('input', () => refreshPortionSelectors());
+  row.querySelector('.btn-remove').addEventListener('click', () => {
+    if (document.querySelectorAll('#portions-list .portion-card').length <= 1) return; // at least one required
+    row.remove();
+    refreshPortionSelectors();
+  });
+
+  document.getElementById('portions-list').appendChild(row);
+}
+
+document.getElementById('add-portion').addEventListener('click', () => {
+  addPortionRow('Portion', 'pi', {});
+  refreshPortionSelectors();
+});
+
+// Two sensible example portions by default, so the tab is never empty
+// on first view — matching every other tab's non-zero defaults.
+addPortionRow('Home', 'pi', { balance: 550000, rate: 6.1, term: 30 });
+addPortionRow('Car', 'pi', { balance: 28000, rate: 6.5, term: 7 });
+
+function getPortions() {
+  return [...document.querySelectorAll('#portions-list .portion-card')].map(row => {
+    const type = row.querySelector('.portion-type').value;
+    const name = row.querySelector('.portion-name').value.trim() || 'Portion';
+    const id = row.dataset.portionId;
+    if (type === 'pi') {
+      return {
+        id, name, type,
+        balance:   +row.querySelector('.portion-pi-balance').value,
+        rate:      +row.querySelector('.portion-pi-rate').value / 100,
+        termYears: +row.querySelector('.portion-pi-term').value,
+      };
+    }
+    return {
+      id, name, type,
+      balance:    +row.querySelector('.portion-io-balance').value,
+      ioRate:     +row.querySelector('.portion-io-rate').value / 100,
+      ioPeriod:   +row.querySelector('.portion-io-period').value,
+      revertRate: +row.querySelector('.portion-io-revert').value / 100,
+      piTerm:     +row.querySelector('.portion-io-piterm').value,
+    };
+  });
+}
+
+// Rebuilds every "Apply to" selector's options from the current portion
+// list — called whenever a portion is added, removed, renamed, or has
+// its type changed, so a strategy can never silently point at a
+// portion that no longer exists. Preserves the existing selection
+// where the target portion is still valid, otherwise falls back to
+// the first available option.
+function refreshPortionSelectors() {
+  const portions = getPortions();
+  document.querySelectorAll('.apply-to-portion').forEach(select => {
+    const piOnly = select.dataset.piOnly === 'true';
+    const options = piOnly ? portions.filter(p => p.type === 'pi') : portions;
+    const prevValue = select.value;
+    select.innerHTML = options.map(p => `<option value="${p.id}">${p.name}</option>`).join('');
+    if (options.some(p => p.id === prevValue)) select.value = prevValue;
+    else if (options.length) select.value = options[0].id;
+  });
+
+  const cards = document.querySelectorAll('#portions-list .portion-card');
+  cards.forEach(card => {
+    card.querySelector('.btn-remove').disabled = cards.length <= 1;
+  });
+}
+
+// ═══════════════════════════════════════════════════════════
 // SCHEDULE TOGGLES
 // ═══════════════════════════════════════════════════════════
 
@@ -1603,6 +1848,8 @@ document.getElementById('sched-period-toggle').addEventListener('click', e => {
   schedPeriod = btn.dataset.speriod;
   renderSchedule();
 });
+
+document.getElementById('sched-portion-select').addEventListener('change', () => renderSchedule());
 
 // ═══════════════════════════════════════════════════════════
 // CHART INSTANCES
@@ -1715,6 +1962,15 @@ let lastResults = null;
 // READ INPUTS
 // ═══════════════════════════════════════════════════════════
 
+// Reads the current value of a strategy's single "Apply to" selector
+// (extra/offset/fortnightly/salary each have exactly one; lump sums
+// have one per row, handled separately in getLumpSums()). Returns
+// null outside Multiple Portions mode, where it's meaningless.
+function getApplyToPortion(strategyKey) {
+  const select = document.querySelector(`.apply-to-portion[data-strategy="${strategyKey}"]`);
+  return select ? select.value : null;
+}
+
 function readInputs() {
   const type = currentLoanType;
   const inputs = { type };
@@ -1745,6 +2001,8 @@ function readInputs() {
     inputs.rate      = +document.getElementById('loc-rate').value / 100;
     inputs.offsetBal = +document.getElementById('loc-offset').value;
     inputs.termYears = +document.getElementById('loc-term').value;
+  } else if (type === 'portions') {
+    inputs.portions = getPortions();
   }
 
   // Rate change events (not a toggled strategy — an optional, always-on
@@ -1757,13 +2015,15 @@ function readInputs() {
       on: strategyState.extra,
       amount: +document.getElementById('extra-amount').value,
       frequency: document.getElementById('extra-frequency').value,
+      portionId: getApplyToPortion('extra'),
     },
     offset: {
       on: strategyState.offset,
       start: +document.getElementById('offset-start').value,
       growth: +document.getElementById('offset-growth').value,
+      portionId: getApplyToPortion('offset'),
     },
-    fortnightly: { on: strategyState.fortnightly },
+    fortnightly: { on: strategyState.fortnightly, portionId: getApplyToPortion('fortnightly') },
     lump: {
       on: strategyState.lump,
       items: getLumpSums(),
@@ -1772,6 +2032,7 @@ function readInputs() {
       on: strategyState.salary,
       amount: +document.getElementById('salary-amount').value,
       days:   +document.getElementById('salary-days').value,
+      portionId: getApplyToPortion('salary'),
     },
     refinance: {
       on: strategyState.refinance,
@@ -1833,6 +2094,53 @@ function buildStratOpts(inp) {
   return { extraMonthly, offsetStart, offsetMonthlyGrowth, lumpSums, fortnightly, rateEvents };
 }
 
+// Multiple Portions variant of buildStratOpts() — instead of one opts
+// object applied to every portion equally, each strategy is only
+// applied to whichever single portion its "Apply to" selector targets
+// (each Lump Sum row targets its own portion independently). Returns
+// a Map<portionId, opts>, left empty for a portion nothing targets.
+function buildPortionStratOpts(inp) {
+  const s = inp.strats;
+  const byPortion = new Map();
+
+  function target(portionId) {
+    if (!byPortion.has(portionId)) {
+      byPortion.set(portionId, { extraMonthly: 0, offsetStart: 0, offsetMonthlyGrowth: 0, lumpSums: [], fortnightly: false });
+    }
+    return byPortion.get(portionId);
+  }
+
+  if (s.extra.on && s.extra.portionId) {
+    const freq = s.extra.frequency;
+    const amt  = s.extra.amount;
+    const extraMonthly = freq === 'fortnightly' ? amt * 26 / 12 : freq === 'weekly' ? amt * 52 / 12 : amt;
+    target(s.extra.portionId).extraMonthly += extraMonthly;
+  }
+
+  if (s.offset.on && s.offset.portionId) {
+    const o = target(s.offset.portionId);
+    o.offsetStart         += s.offset.start;
+    o.offsetMonthlyGrowth += s.offset.growth;
+  }
+
+  if (s.salary.on && s.salary.portionId) {
+    target(s.salary.portionId).offsetStart += s.salary.amount * s.salary.days / 30;
+  }
+
+  if (s.fortnightly.on && s.fortnightly.portionId) {
+    target(s.fortnightly.portionId).fortnightly = true;
+  }
+
+  if (s.lump.on) {
+    for (const item of s.lump.items) {
+      if (!item.portionId) continue;
+      target(item.portionId).lumpSums.push({ afterYear: item.afterYear, amount: item.amount });
+    }
+  }
+
+  return byPortion;
+}
+
 // ═══════════════════════════════════════════════════════════
 // MAIN CALCULATE
 // ═══════════════════════════════════════════════════════════
@@ -1879,8 +2187,48 @@ function calculate() {
     const piStrat   = amortPI(inp.piBalance, inp.piRate, inp.piTermYrs * 12, { ...opts, buildSchedule: true });
     const ioStrat   = amortIO(inp.ioBalance, inp.ioRate, inp.ioPeriod, inp.revertRate, inp.iopiTerm, { ...opts, buildSchedule: true });
 
-    baseResult  = { totalInterest: piBase.totalInterest  + ioBase.totalInterest,  termMonths: Math.max(piBase.termMonths, ioBase.termMonths),  schedule: mergeSchedules(piBase.schedule, ioBase.schedule)   };
-    stratResult = { totalInterest: piStrat.totalInterest + ioStrat.totalInterest, termMonths: Math.max(piStrat.termMonths, ioStrat.termMonths), schedule: mergeSchedules(piStrat.schedule, ioStrat.schedule) };
+    baseResult  = { totalInterest: piBase.totalInterest  + ioBase.totalInterest,  termMonths: Math.max(piBase.termMonths, ioBase.termMonths),  schedule: mergeSchedules([piBase.schedule, ioBase.schedule])   };
+    stratResult = { totalInterest: piStrat.totalInterest + ioStrat.totalInterest, termMonths: Math.max(piStrat.termMonths, ioStrat.termMonths), schedule: mergeSchedules([piStrat.schedule, ioStrat.schedule]) };
+
+  } else if (type === 'portions') {
+    const portions = inp.portions;
+    balance = portions.reduce((sum, p) => sum + p.balance, 0);
+    rate    = portions.length ? (portions[0].type === 'pi' ? portions[0].rate : portions[0].ioRate) : 0; // representative only, same simplification 'split' already makes
+
+    const portionOptsMap = buildPortionStratOpts(inp);
+    const basePortionResults = [];
+    const stratPortionResults = [];
+
+    portions.forEach(p => {
+      const pOpts = portionOptsMap.get(p.id) || {};
+      let baseR, stratR;
+      if (p.type === 'pi') {
+        const pTermMonths = Math.round(p.termYears * 12);
+        baseR  = amortPI(p.balance, p.rate, pTermMonths, { rateEvents: opts.rateEvents, buildSchedule: true });
+        stratR = amortPI(p.balance, p.rate, pTermMonths, { ...pOpts, rateEvents: opts.rateEvents, buildSchedule: true });
+      } else {
+        baseR  = amortIO(p.balance, p.ioRate, p.ioPeriod, p.revertRate, p.piTerm, { rateEvents: opts.rateEvents, buildSchedule: true });
+        stratR = amortIO(p.balance, p.ioRate, p.ioPeriod, p.revertRate, p.piTerm, { ...pOpts, rateEvents: opts.rateEvents, buildSchedule: true });
+      }
+      const pRate = p.type === 'pi' ? p.rate : p.ioRate;
+      basePortionResults.push({ id: p.id, name: p.name, type: p.type, balance: p.balance, rate: pRate, ...baseR });
+      stratPortionResults.push({ id: p.id, name: p.name, type: p.type, balance: p.balance, rate: pRate, ...stratR });
+    });
+
+    termMonths = Math.max(...basePortionResults.map(r => r.termMonths));
+
+    baseResult = {
+      totalInterest: basePortionResults.reduce((s, r) => s + r.totalInterest, 0),
+      termMonths: Math.max(...basePortionResults.map(r => r.termMonths)),
+      schedule: mergeSchedules(basePortionResults.map(r => r.schedule)),
+      portionResults: basePortionResults,
+    };
+    stratResult = {
+      totalInterest: stratPortionResults.reduce((s, r) => s + r.totalInterest, 0),
+      termMonths: Math.max(...stratPortionResults.map(r => r.termMonths)),
+      schedule: mergeSchedules(stratPortionResults.map(r => r.schedule)),
+      portionResults: stratPortionResults,
+    };
   }
 
   lastResults = { inp, opts, baseResult, stratResult, balance, rate, termMonths };
@@ -1888,20 +2236,30 @@ function calculate() {
   renderResults(inp, baseResult, stratResult, balance, rate, termMonths);
 }
 
-function mergeSchedules(a, b) {
-  // Combine two schedules by month, summing balance/interest/principal
-  const maxMonth = Math.max(...a.map(x => x.month), ...b.map(x => x.month));
+function mergeSchedules(schedules) {
+  // Combine any number of schedules by month, summing balance/interest/
+  // principal. Keyed by a Map<month, row> built in one pass over every
+  // schedule (O(total rows)), rather than an .find() scan per month per
+  // schedule (quadratic) — the old 2-argument version got away with
+  // that since there were only ever two schedules; worth fixing now
+  // that there can be as many as there are portions. A schedule that's
+  // already finished contributes nothing to later months, same as
+  // before — it simply has no entries left to add.
+  const byMonth = new Map();
+  for (const schedule of schedules) {
+    for (const entry of schedule) {
+      const row = byMonth.get(entry.month) || { month: entry.month, interest: 0, principal: 0, balance: 0, cumInterest: 0 };
+      row.interest    += entry.interest;
+      row.principal   += entry.principal;
+      row.balance     += entry.balance;
+      row.cumInterest += entry.cumInterest;
+      byMonth.set(entry.month, row);
+    }
+  }
+  const maxMonth = Math.max(0, ...schedules.map(s => s.length ? s[s.length - 1].month : 0));
   const merged = [];
   for (let m = 1; m <= maxMonth; m++) {
-    const ea = a.find(x => x.month === m);
-    const eb = b.find(x => x.month === m);
-    merged.push({
-      month: m,
-      interest:    (ea?.interest   || 0) + (eb?.interest   || 0),
-      principal:   (ea?.principal  || 0) + (eb?.principal  || 0),
-      balance:     (ea?.balance    || 0) + (eb?.balance    || 0),
-      cumInterest: (ea?.cumInterest|| 0) + (eb?.cumInterest|| 0),
-    });
+    merged.push(byMonth.get(m) || { month: m, interest: 0, principal: 0, balance: 0, cumInterest: 0 });
   }
   return merged;
 }
@@ -1930,6 +2288,12 @@ function renderResults(inp, base, strat, balance, rate, termMonths) {
   } else if (inp.type === 'io') {
     minRepayment = inp.balance * inp.ioRate / 12;
     freqLabel = '/month (IO phase)';
+  } else if (inp.type === 'portions') {
+    minRepayment = inp.portions.reduce((sum, p) => {
+      if (p.type === 'pi') return sum + calcMinPayment(p.balance, p.rate, Math.round(p.termYears * 12));
+      return sum + (p.balance * p.ioRate / 12);
+    }, 0);
+    freqLabel = '/month (combined)';
   } else {
     minRepayment = calcMinPayment(inp.piBalance, inp.piRate, inp.piTermYrs * 12) +
                    calcMinPayment(inp.ioBalance, inp.ioRate, (inp.ioPeriod + inp.iopiTerm) * 12) / 12;
@@ -2002,8 +2366,60 @@ function renderResults(inp, base, strat, balance, rate, termMonths) {
     sensSection.classList.add('hidden');
   }
 
+  // ── Portion summary ───────────────────────────────────────
+  const portionsSection = document.getElementById('section-portions');
+  if (inp.type === 'portions') {
+    portionsSection.classList.remove('hidden');
+    renderPortionSummary(base, strat);
+  } else {
+    portionsSection.classList.add('hidden');
+  }
+
   renderLoyaltyCallout(inp, balance);
   renderSchedule();
+}
+
+// One row per portion: balance/rate as entered, total interest and
+// term from the base (no-strategy) run, interest saved from comparing
+// against the strategy run for that same portion.
+function renderPortionSummary(base, strat) {
+  const rows = base.portionResults.map(b => {
+    const s = strat.portionResults.find(r => r.id === b.id);
+    return {
+      name: b.name,
+      type: b.type === 'pi' ? 'Principal & Interest' : 'Interest Only',
+      balance: b.balance,
+      rate: b.rate,
+      totalInterest: b.totalInterest,
+      saved: b.totalInterest - (s ? s.totalInterest : b.totalInterest),
+      termMonths: s ? s.termMonths : b.termMonths,
+    };
+  });
+
+  document.getElementById('portions-summary-tbody').innerHTML = rows.map(r => `
+    <tr>
+      <td>${r.name}</td>
+      <td>${r.type}</td>
+      <td class="amt">${fmt$(r.balance)}</td>
+      <td class="amt">${fmtRate(r.rate)}</td>
+      <td class="amt">${fmt$(r.totalInterest)}</td>
+      <td class="amt text-success">${fmt$(r.saved)}</td>
+      <td class="amt">${termLabel(r.termMonths)}</td>
+    </tr>
+  `).join('');
+
+  const totals = rows.reduce((a, r) => ({
+    balance: a.balance + r.balance, totalInterest: a.totalInterest + r.totalInterest, saved: a.saved + r.saved,
+  }), { balance: 0, totalInterest: 0, saved: 0 });
+  document.getElementById('portions-summary-tfoot').innerHTML = `
+    <tr>
+      <td>Total</td><td>—</td>
+      <td class="amt">${fmt$(totals.balance)}</td><td>—</td>
+      <td class="amt">${fmt$(totals.totalInterest)}</td>
+      <td class="amt">${fmt$(totals.saved)}</td>
+      <td>—</td>
+    </tr>
+  `;
 }
 
 // ── Individual strategy savings breakdown ────────────────
@@ -2175,7 +2591,29 @@ function renderSchedule() {
   if (!lastResults) return;
   const { inp, baseResult, stratResult, balance, termMonths } = lastResults;
   const result = schedView === 'base' ? baseResult : stratResult;
-  const sched  = result.schedule;
+
+  const portionWrap = document.getElementById('sched-portion-wrap');
+  const portionSelect = document.getElementById('sched-portion-select');
+  let sched = result.schedule;
+
+  if (inp.type === 'portions') {
+    portionWrap.classList.remove('hidden');
+    const existingValues = [...portionSelect.options].map(o => o.value);
+    const wantedValues = ['', ...result.portionResults.map(p => p.id)];
+    if (existingValues.join(',') !== wantedValues.join(',')) {
+      const prev = portionSelect.value;
+      portionSelect.innerHTML = `<option value="">Combined</option>` +
+        result.portionResults.map(p => `<option value="${p.id}">${p.name}</option>`).join('');
+      portionSelect.value = wantedValues.includes(prev) ? prev : '';
+    }
+    if (portionSelect.value) {
+      const chosen = result.portionResults.find(p => p.id === portionSelect.value);
+      if (chosen) sched = chosen.schedule;
+    }
+  } else {
+    portionWrap.classList.add('hidden');
+  }
+
   if (!sched || sched.length === 0) return;
 
   document.getElementById('schedule-placeholder').classList.add('hidden');

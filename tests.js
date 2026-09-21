@@ -302,6 +302,30 @@ function amortIO(balance, ioRate, ioPeriodYears, revertRate, piTermYears, opts =
   return { totalInterest: Math.round(totalInterest), termMonths: month, schedule };
 }
 
+// Combines any number of per-period schedules into one, month by
+// month, summing interest/principal/balance/cumInterest. Mirrors
+// mortgage-calculator.html's mergeSchedules() — used for Split Loan
+// (2 portions) and Multiple Portions (N portions) alike.
+function mergeSchedules(schedules) {
+  const byMonth = new Map();
+  for (const schedule of schedules) {
+    for (const entry of schedule) {
+      const row = byMonth.get(entry.month) || { month: entry.month, interest: 0, principal: 0, balance: 0, cumInterest: 0 };
+      row.interest    += entry.interest;
+      row.principal   += entry.principal;
+      row.balance     += entry.balance;
+      row.cumInterest += entry.cumInterest;
+      byMonth.set(entry.month, row);
+    }
+  }
+  const maxMonth = Math.max(0, ...schedules.map(s => s.length ? s[s.length - 1].month : 0));
+  const merged = [];
+  for (let m = 1; m <= maxMonth; m++) {
+    merged.push(byMonth.get(m) || { month: m, interest: 0, principal: 0, balance: 0, cumInterest: 0 });
+  }
+  return merged;
+}
+
 // ============================================================
 // TEST FRAMEWORK
 // ============================================================
@@ -514,6 +538,52 @@ section('Split loan  $400k P&I 6.25% 30y  +  $200k IO 6.75% 5y revert 6.50% 25y'
 const splitPI = amortPI(400_000, 0.0625, 360, { startDate: TEST_START_DATE });
 const splitIO = amortIO(200_000, 0.0675, 5, 0.065, 25, { startDate: TEST_START_DATE });
 checkDollar('Combined total interest', splitPI.totalInterest + splitIO.totalInterest, 760_409);
+
+// ── Multiple Portions ──────────────────────────────────────────
+// Same scenario browser-verified end-to-end (Loan Setup → Strategies →
+// Results → Schedule) before being locked in here as a regression
+// check: Home $550k P&I 6.1% 30y, Car $28k P&I 6.5% 7y, an interest-free
+// "Mum & Dad" loan $15k 0% 5y.
+section('Multiple Portions — 3 independent portions combined');
+
+const mpHome   = amortPI(550_000, 0.061, 360, { startDate: TEST_START_DATE, buildSchedule: true });
+const mpCar    = amortPI(28_000,  0.065, 84,  { startDate: TEST_START_DATE, buildSchedule: true });
+const mpFamily = amortPI(15_000,  0,     60,  { startDate: TEST_START_DATE, buildSchedule: true });
+
+checkDollar('Home total interest', mpHome.totalInterest, 650_914);
+checkDollar('Car total interest', mpCar.totalInterest, 6_930);
+checkDollar('Family loan (0% rate) accrues no interest at all', mpFamily.totalInterest, 0);
+checkDollar('Combined total interest across all 3 portions', mpHome.totalInterest + mpCar.totalInterest + mpFamily.totalInterest, 657_840);
+
+section('Multiple Portions — a strategy targeted at one portion leaves another untouched');
+
+const carBase  = amortPI(28_000, 0.065, 84, { startDate: TEST_START_DATE });
+const carExtra = amortPI(28_000, 0.065, 84, { startDate: TEST_START_DATE, extraMonthly: 300 });
+checkExact('extra payment on Car reduces Car\'s own interest', carExtra.totalInterest < carBase.totalInterest ? 1 : 0, 1, 0);
+checkDollar('Home\'s interest is identical whether or not Car has its own strategy (independent calls)', mpHome.totalInterest, amortPI(550_000, 0.061, 360, { startDate: TEST_START_DATE }).totalInterest);
+
+section('mergeSchedules() — 3 schedules of different lengths combine correctly');
+
+const mpMerged = mergeSchedules([mpHome.schedule, mpCar.schedule, mpFamily.schedule]);
+checkMonths('merged schedule runs as long as the longest portion (Home)', mpMerged.length, mpHome.schedule.length);
+
+// Month 1: all three portions are still active.
+const month1Expected = mpHome.schedule[0].balance + mpCar.schedule[0].balance + mpFamily.schedule[0].balance;
+checkDollar('month 1 combined balance = sum of all 3 active portions', mpMerged[0].balance, month1Expected);
+
+// The month right after the shortest portion (Mum & Dad) actually
+// finishes: only Home and Car should still be contributing. Uses the
+// portion's own ACTUAL schedule length rather than its nominal term,
+// since ACT/365 daily accrual can land a period or two either side of
+// the nominal month count.
+const afterFamily = mpFamily.schedule.length + 1;
+const afterFamilyExpected = mpHome.schedule[afterFamily - 1].balance + mpCar.schedule[afterFamily - 1].balance;
+checkDollar(`month ${afterFamily} balance excludes the already-finished Mum & Dad portion`, mpMerged[afterFamily - 1].balance, afterFamilyExpected);
+
+// The month right after Car also finishes: only Home should remain.
+const afterCar = mpCar.schedule.length + 1;
+const afterCarExpected = mpHome.schedule[afterCar - 1].balance;
+checkDollar(`month ${afterCar} balance is Home alone (Car and Mum & Dad both finished)`, mpMerged[afterCar - 1].balance, afterCarExpected);
 
 // ── Fortnightly formula unit test ────────────────────────────
 section('Fortnightly half-monthly formula — unit test');
