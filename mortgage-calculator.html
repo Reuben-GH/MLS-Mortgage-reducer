@@ -2929,14 +2929,18 @@ document.getElementById('btn-calculate').addEventListener('click', () => {
 
 document.getElementById('btn-goto-strategies').addEventListener('click', () => switchToTab('strategies'));
 
-// A reload is the most reliable "reset" — every field, portion,
-// lump sum row, and rate event is just the page's starting HTML with
-// nothing saved anywhere, so a reload is guaranteed to clear all of
-// it in one go rather than needing a hand-written reset for every
-// individual field, toggle, and dynamic row (and every one added in
-// future).
+// A plain location.reload() is undone by a browser feature that
+// restores exactly what the user had typed (Chrome/Safari/Firefox all
+// do this on refresh, to protect against losing work by accident) —
+// harmless for a normal page reload, but defeats a deliberate reset.
+// Navigating to a freshly-querystringed URL instead is treated as new
+// navigation, not "restore my edits", so it genuinely loads the
+// page's original defaults. replace() (not href=) also means Back
+// can't return to the dirty state.
 document.getElementById('btn-reset').addEventListener('click', () => {
-  if (confirm('Reset all values and start again?')) location.reload();
+  if (confirm('Reset all values and start again?')) {
+    location.replace(location.pathname + '?reset=' + Date.now());
+  }
 });
 
 document.getElementById('btn-run-all').addEventListener('click', () => {
