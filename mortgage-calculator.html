@@ -2968,6 +2968,11 @@ function resetAll() {
   document.getElementById('portions-list').innerHTML = '';
   addPortionRow('Home', 'pi', { balance: 550000, rate: 6.1, term: 30 });
   addPortionRow('Car', 'pi', { balance: 28000, rate: 6.5, term: 7 });
+  // addPortionRow() doesn't refresh the Strategies tab's "Apply to"
+  // dropdowns itself (it only wires that up for future edits) — without
+  // this, those dropdowns keep listing whatever portions existed
+  // before the reset, even though the portions themselves are correct.
+  refreshPortionSelectors();
 
   document.querySelectorAll('.loan-type-btn').forEach(b => b.classList.remove('active'));
   document.querySelectorAll('.loan-fields').forEach(f => f.classList.remove('active'));
