@@ -1282,17 +1282,20 @@ tfoot td:first-child { text-align: left; }
 // ═══════════════════════════════════════════════════════════
 // FIELD DEFAULTS (captured once, for the Reset button)
 // ═══════════════════════════════════════════════════════════
-// A reload-based reset turned out to be unreliable in practice —
-// Chrome/Safari/Firefox can restore exactly what the user had typed
-// even across a "new" navigation, so a browser-refresh trick isn't
-// guaranteed. This instead snapshots every statically-present,
-// id'd field's value right now, before any user interaction is
-// possible, and restores from that snapshot directly — no
-// reload/navigation involved at all, so no browser behaviour to
-// fight. Only fields with a stable id are captured here (dynamic
-// list rows — lump sums, rate events, portions — don't have one;
-// resetAll() clears and rebuilds those separately, reusing the same
-// functions and default arguments already used on page load).
+// Reset is a genuine blank slate, not "restore the demo numbers" — a
+// client is expected to fill in every field themselves, so leaving
+// pre-filled example values in place (even correctly "reset" to them)
+// is exactly as confusing as leaving whatever they'd typed. Number/
+// text fields get cleared to empty in resetAll(); this snapshot
+// exists only for the handful of fields where blank wouldn't make
+// sense — select dropdowns (Repayment Frequency, etc.) and checkboxes
+// — captured once, before any user interaction is possible, and
+// restored directly with no reload/navigation involved (an earlier
+// reload-based approach turned out to be unreliable: Chrome/Safari/
+// Firefox can restore exactly what the user had typed even across a
+// "new" navigation). Only fields with a stable id are captured here
+// (dynamic list rows — lump sums, rate events, portions — don't have
+// one; resetAll() clears those to zero rows entirely).
 const FIELD_DEFAULTS = new Map();
 document.querySelectorAll('input[id], select[id]').forEach(el => {
   FIELD_DEFAULTS.set(el, el.type === 'checkbox' ? el.checked : el.value);
@@ -1631,7 +1634,7 @@ document.querySelectorAll('.strategy-header').forEach(header => {
 
 let lumpCounter = 0;
 
-function addLumpRow(afterYear = 1, amount = 20000) {
+function addLumpRow(afterYear = '', amount = '') {
   lumpCounter++;
   const id = lumpCounter;
   const row = document.createElement('div');
@@ -1655,7 +1658,7 @@ function addLumpRow(afterYear = 1, amount = 20000) {
 }
 
 document.getElementById('add-lump').addEventListener('click', () => addLumpRow());
-addLumpRow(); // default one row
+addLumpRow(1, 20000); // one worked example on first-ever page load only; the button itself adds blank rows
 
 function getLumpSums() {
   return [...document.querySelectorAll('#lump-list .list-item')].map(row => ({
@@ -1671,7 +1674,7 @@ function getLumpSums() {
 
 let rateEventCounter = 0;
 
-function addRateEventRow(afterYear = 5, rate = 6.5) {
+function addRateEventRow(afterYear = '', rate = '') {
   rateEventCounter++;
   const id = rateEventCounter;
   const row = document.createElement('div');
@@ -1731,19 +1734,19 @@ function addPortionRow(name, type, fields = {}) {
       <div class="form-group">
         <label>Balance</label>
         <div class="input-prefix"><span>$</span>
-          <input type="number" autocomplete="off" class="portion-pi-balance" value="${fields.balance ?? 400000}" min="0" step="1000">
+          <input type="number" autocomplete="off" class="portion-pi-balance" value="${fields.balance ?? ''}" min="0" step="1000">
         </div>
       </div>
       <div class="form-group">
         <label>Rate</label>
         <div class="input-suffix"><span>%</span>
-          <input type="number" autocomplete="off" class="portion-pi-rate" value="${fields.rate ?? 6.25}" min="0" max="30" step="0.05">
+          <input type="number" autocomplete="off" class="portion-pi-rate" value="${fields.rate ?? ''}" min="0" max="30" step="0.05">
         </div>
       </div>
       <div class="form-group">
         <label>Term</label>
         <div class="input-suffix"><span>yrs</span>
-          <input type="number" autocomplete="off" class="portion-pi-term" value="${fields.term ?? 30}" min="1" max="40" step="1">
+          <input type="number" autocomplete="off" class="portion-pi-term" value="${fields.term ?? ''}" min="1" max="40" step="1">
         </div>
       </div>
     </div>
@@ -1751,31 +1754,31 @@ function addPortionRow(name, type, fields = {}) {
       <div class="form-group">
         <label>IO Balance</label>
         <div class="input-prefix"><span>$</span>
-          <input type="number" autocomplete="off" class="portion-io-balance" value="${fields.ioBalance ?? 200000}" min="0" step="1000">
+          <input type="number" autocomplete="off" class="portion-io-balance" value="${fields.ioBalance ?? ''}" min="0" step="1000">
         </div>
       </div>
       <div class="form-group">
         <label>IO Rate</label>
         <div class="input-suffix"><span>%</span>
-          <input type="number" autocomplete="off" class="portion-io-rate" value="${fields.ioRate ?? 6.75}" min="0" max="30" step="0.05">
+          <input type="number" autocomplete="off" class="portion-io-rate" value="${fields.ioRate ?? ''}" min="0" max="30" step="0.05">
         </div>
       </div>
       <div class="form-group">
         <label>IO Period</label>
         <div class="input-suffix"><span>yrs</span>
-          <input type="number" autocomplete="off" class="portion-io-period" value="${fields.ioPeriod ?? 5}" min="1" max="20" step="1">
+          <input type="number" autocomplete="off" class="portion-io-period" value="${fields.ioPeriod ?? ''}" min="1" max="20" step="1">
         </div>
       </div>
       <div class="form-group">
         <label>Revert Rate</label>
         <div class="input-suffix"><span>%</span>
-          <input type="number" autocomplete="off" class="portion-io-revert" value="${fields.ioRevert ?? 6.5}" min="0" max="30" step="0.05">
+          <input type="number" autocomplete="off" class="portion-io-revert" value="${fields.ioRevert ?? ''}" min="0" max="30" step="0.05">
         </div>
       </div>
       <div class="form-group">
         <label>P&amp;I Term After IO</label>
         <div class="input-suffix"><span>yrs</span>
-          <input type="number" autocomplete="off" class="portion-io-piterm" value="${fields.ioPiTerm ?? 25}" min="1" max="40" step="1">
+          <input type="number" autocomplete="off" class="portion-io-piterm" value="${fields.ioPiTerm ?? ''}" min="1" max="40" step="1">
         </div>
       </div>
     </div>
@@ -2179,6 +2182,16 @@ function calculate() {
   const opts = buildStratOpts(inp);
   const type = inp.type;
 
+  // Fields reset to blank rather than pre-filled defaults (see
+  // resetAll()), and Multiple Portions can legitimately have zero
+  // portions right after a reset — both mean calculate() can be
+  // asked to run before there's anything real to compute. Rather than
+  // silently produce $NaN/Infinity, stop and say so plainly.
+  if (type === 'portions' && inp.portions.length === 0) {
+    alert('Add at least one portion before calculating.');
+    return false;
+  }
+
   let baseResult, stratResult, balance, rate, termMonths;
 
   if (type === 'pi' || type === 'loc') {
@@ -2263,6 +2276,7 @@ function calculate() {
   lastResults = { inp, opts, baseResult, stratResult, balance, rate, termMonths };
 
   renderResults(inp, baseResult, stratResult, balance, rate, termMonths);
+  return true;
 }
 
 function mergeSchedules(schedules) {
@@ -2942,36 +2956,37 @@ function switchToTab(name) {
 }
 
 document.getElementById('btn-calculate').addEventListener('click', () => {
-  calculate();
-  switchToTab('results');
+  if (calculate()) switchToTab('results');
 });
 
 document.getElementById('btn-goto-strategies').addEventListener('click', () => switchToTab('strategies'));
 
 // Explicit, deterministic reset — no reload/navigation involved, so
-// there's no browser form-restore behaviour left to fight. Restores
-// every statically-present field from the FIELD_DEFAULTS snapshot,
-// rebuilds the dynamic lists (lump sums, rate events, portions) from
-// scratch using the same functions and defaults already used on page
-// load, and puts every toggle/tab/chart back to its starting state.
+// there's no browser form-restore behaviour left to fight. This is
+// deliberately a blank slate, not a restore-the-demo-numbers reset:
+// a client is expected to work through every field themselves, so
+// leaving the original example values in place (even correctly
+// "reset" to them) is exactly the confusing half-measure Reg flagged
+// — a filled-in field looks like real data whether it's his demo
+// number or a client's. Every number/text field is cleared to empty;
+// only genuine structural choices (which loan type, which dropdown
+// option) keep a sensible default, since there's no meaningful
+// "blank" state for those. Dynamic lists (lump sums, rate events,
+// portions) are cleared to zero rows — added deliberately via their
+// own "+ Add" button, not pre-populated.
 function resetAll() {
   FIELD_DEFAULTS.forEach((value, el) => {
-    if (el.type === 'checkbox') el.checked = value;
-    else el.value = value;
+    if (el.tagName === 'SELECT') el.value = value;
+    else if (el.type === 'checkbox') el.checked = value;
+    else el.value = '';
   });
 
   document.getElementById('rate-events-list').innerHTML = '';
-
   document.getElementById('lump-list').innerHTML = '';
-  addLumpRow();
-
   document.getElementById('portions-list').innerHTML = '';
-  addPortionRow('Home', 'pi', { balance: 550000, rate: 6.1, term: 30 });
-  addPortionRow('Car', 'pi', { balance: 28000, rate: 6.5, term: 7 });
-  // addPortionRow() doesn't refresh the Strategies tab's "Apply to"
-  // dropdowns itself (it only wires that up for future edits) — without
-  // this, those dropdowns keep listing whatever portions existed
-  // before the reset, even though the portions themselves are correct.
+  // No portions exist right after a reset — refreshes every "Apply
+  // to" dropdown down to zero options, same as a first-time visitor
+  // who hasn't added any portions yet.
   refreshPortionSelectors();
 
   document.querySelectorAll('.loan-type-btn').forEach(b => b.classList.remove('active'));
@@ -2983,7 +2998,9 @@ function resetAll() {
   document.getElementById('strategy-refinance').classList.remove('hidden');
   document.getElementById('strategy-ratesens').classList.remove('hidden');
 
-  const defaultStrategyState = { extra: true, offset: true, fortnightly: true, lump: true, salary: false, refinance: false, ratesens: false };
+  // Every strategy off — a client opts in to each one deliberately,
+  // rather than some being silently pre-selected.
+  const defaultStrategyState = { extra: false, offset: false, fortnightly: false, lump: false, salary: false, refinance: false, ratesens: false };
   Object.keys(defaultStrategyState).forEach(key => {
     strategyState[key] = defaultStrategyState[key];
     document.getElementById('toggle-' + key).classList.toggle('on', strategyState[key]);
@@ -3027,8 +3044,7 @@ document.getElementById('btn-reset').addEventListener('click', () => {
 });
 
 document.getElementById('btn-run-all').addEventListener('click', () => {
-  calculate();
-  switchToTab('results');
+  if (calculate()) switchToTab('results');
 });
 
 document.getElementById('btn-compare').addEventListener('click', () => {
