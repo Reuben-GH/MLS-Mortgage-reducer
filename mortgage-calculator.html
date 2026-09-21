@@ -557,6 +557,7 @@ tfoot td:first-child { text-align: left; }
   <!-- Calculate -->
   <div class="calc-bar">
     <button class="btn-primary" id="btn-calculate">Calculate</button>
+    <button class="btn-secondary" id="btn-goto-strategies" type="button">Go to Strategies →</button>
     <span class="calc-bar-note">Results appear in the Results tab</span>
   </div>
 
@@ -763,6 +764,41 @@ tfoot td:first-child { text-align: left; }
     <button class="btn-secondary" id="btn-calculate-2">Calculate</button>
   </div>
 
+  <!-- Compare two strategies head-to-head -->
+  <div class="card mt16">
+    <div class="card-title">Compare Two Strategies</div>
+    <div style="font-size:13px;color:var(--muted);margin-bottom:12px;">
+      See which single strategy saves more on its own, using the amounts entered above for each —
+      e.g. Offset Account vs Lump Sum Injections. Only available for Principal &amp; Interest or Line
+      of Credit loans.
+    </div>
+    <div class="form-grid">
+      <div class="form-group">
+        <label>Strategy A</label>
+        <select id="compare-a">
+          <option value="extra">Extra Regular Repayments</option>
+          <option value="offset" selected>Offset Account</option>
+          <option value="fortnightly">Fortnightly Repayments</option>
+          <option value="lump">Lump Sum Injections</option>
+          <option value="salary">Salary Crediting to Offset</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Strategy B</label>
+        <select id="compare-b">
+          <option value="extra">Extra Regular Repayments</option>
+          <option value="offset">Offset Account</option>
+          <option value="fortnightly">Fortnightly Repayments</option>
+          <option value="lump" selected>Lump Sum Injections</option>
+          <option value="salary">Salary Crediting to Offset</option>
+        </select>
+      </div>
+    </div>
+    <div class="calc-bar mt16">
+      <button class="btn-primary" id="btn-compare">Compare Strategies</button>
+    </div>
+  </div>
+
 </div><!-- /tab-strategies -->
 
 
@@ -896,6 +932,24 @@ tfoot td:first-child { text-align: left; }
       <div class="chart-title">Balance Projection — Three Scenarios</div>
       <div class="chart-canvas-wrap">
         <canvas id="chart-sens"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- Strategy comparison (shown when Compare Strategies is used) -->
+  <div id="section-compare" class="hidden">
+    <div class="result-section-title">Strategy Comparison</div>
+    <div id="compare-error" class="calc-bar-note text-danger"></div>
+    <div style="overflow-x:auto;">
+      <table class="ledger">
+        <thead id="compare-thead"></thead>
+        <tbody id="compare-tbody"></tbody>
+      </table>
+    </div>
+    <div class="chart-wrap">
+      <div class="chart-title">Interest Saved — Head to Head</div>
+      <div class="chart-canvas-wrap" style="height:200px;">
+        <canvas id="chart-compare"></canvas>
       </div>
     </div>
   </div>
@@ -2321,32 +2375,126 @@ function calcInvestment() {
 }
 
 // ═══════════════════════════════════════════════════════════
+// STRATEGY COMPARISON (e.g. Offset Account vs Lump Sum Injections)
+// ═══════════════════════════════════════════════════════════
+
+const STRATEGY_LABELS = {
+  extra: 'Extra Regular Repayments',
+  offset: 'Offset Account',
+  fortnightly: 'Fortnightly Repayments',
+  lump: 'Lump Sum Injections',
+  salary: 'Salary Crediting to Offset',
+};
+
+// Builds the amortPI opts for a single strategy in isolation, reusing
+// the exact same input fields buildStratOpts() reads — so comparing
+// "Offset Account" here uses whatever offset amount is already
+// entered in the Strategies tab, not a separate duplicate input.
+function getIsolatedOpts(key) {
+  if (key === 'extra') {
+    const freq = document.getElementById('extra-frequency').value;
+    const amt = +document.getElementById('extra-amount').value;
+    const extraMonthly = freq === 'fortnightly' ? amt * 26 / 12 : freq === 'weekly' ? amt * 52 / 12 : amt;
+    return { extraMonthly };
+  }
+  if (key === 'offset') {
+    return {
+      offsetStart: +document.getElementById('offset-start').value,
+      offsetMonthlyGrowth: +document.getElementById('offset-growth').value,
+    };
+  }
+  if (key === 'fortnightly') return { fortnightly: true };
+  if (key === 'lump') return { lumpSums: getLumpSums() };
+  if (key === 'salary') {
+    const amt = +document.getElementById('salary-amount').value;
+    const days = +document.getElementById('salary-days').value;
+    return { offsetStart: amt * days / 30 };
+  }
+  return {};
+}
+
+function runComparison() {
+  const inp = readInputs();
+  const errEl = document.getElementById('compare-error');
+
+  if (inp.type !== 'pi' && inp.type !== 'loc') {
+    errEl.textContent = 'Strategy comparison is only available for Principal & Interest or Line of Credit loans.';
+    document.getElementById('section-compare').classList.remove('hidden');
+    return;
+  }
+  errEl.textContent = '';
+
+  const balance = inp.balance;
+  const rate = inp.rate;
+  const termMonths = Math.round((inp.termYears - (inp.elapsed || 0)) * 12);
+
+  const keyA = document.getElementById('compare-a').value;
+  const keyB = document.getElementById('compare-b').value;
+
+  const base = amortPI(balance, rate, termMonths, {});
+  const resultA = amortPI(balance, rate, termMonths, getIsolatedOpts(keyA));
+  const resultB = amortPI(balance, rate, termMonths, getIsolatedOpts(keyB));
+
+  renderComparison(base, { key: keyA, result: resultA }, { key: keyB, result: resultB });
+}
+
+function renderComparison(base, a, b) {
+  const rows = [a, b].map(({ key, result }) => ({
+    label: STRATEGY_LABELS[key],
+    totalInterest: result.totalInterest,
+    saved: base.totalInterest - result.totalInterest,
+    termMonths: result.termMonths,
+  }));
+
+  document.getElementById('compare-thead').innerHTML = `<tr>
+    <th></th><th>No strategy</th><th>${rows[0].label}</th><th>${rows[1].label}</th>
+  </tr>`;
+  document.getElementById('compare-tbody').innerHTML = `
+    <tr><td>Total interest</td><td>${fmt$(base.totalInterest)}</td><td>${fmt$(rows[0].totalInterest)}</td><td>${fmt$(rows[1].totalInterest)}</td></tr>
+    <tr><td>Interest saved</td><td>—</td><td class="text-success">${fmt$(rows[0].saved)}</td><td class="text-success">${fmt$(rows[1].saved)}</td></tr>
+    <tr><td>Loan term</td><td>${termLabel(base.termMonths)}</td><td>${termLabel(rows[0].termMonths)}</td><td>${termLabel(rows[1].termMonths)}</td></tr>
+    <tr><td>Loan-free date</td><td>${loanFreeDate(base.termMonths)}</td><td>${loanFreeDate(rows[0].termMonths)}</td><td>${loanFreeDate(rows[1].termMonths)}</td></tr>
+  `;
+
+  makeBarChart('chart-compare',
+    [{ data: [rows[0].saved, rows[1].saved], backgroundColor: [COLORS.strat, COLORS.refi], borderRadius: 4 }],
+    [rows[0].label, rows[1].label],
+  );
+
+  document.getElementById('section-compare').classList.remove('hidden');
+}
+
+// ═══════════════════════════════════════════════════════════
 // EVENT WIRING
 // ═══════════════════════════════════════════════════════════
 
-document.getElementById('btn-calculate').addEventListener('click', () => {
-  calculate();
-  // Switch to results tab
+function switchToTab(name) {
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
   document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
-  document.querySelector('[data-tab="results"]').classList.add('active');
-  document.getElementById('tab-results').classList.add('active');
+  document.querySelector(`[data-tab="${name}"]`).classList.add('active');
+  document.getElementById('tab-' + name).classList.add('active');
+}
+
+document.getElementById('btn-calculate').addEventListener('click', () => {
+  calculate();
+  switchToTab('results');
 });
+
+document.getElementById('btn-goto-strategies').addEventListener('click', () => switchToTab('strategies'));
 
 document.getElementById('btn-calculate-2').addEventListener('click', () => {
   calculate();
-  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
-  document.querySelector('[data-tab="results"]').classList.add('active');
-  document.getElementById('tab-results').classList.add('active');
+  switchToTab('results');
 });
 
 document.getElementById('btn-run-all').addEventListener('click', () => {
   calculate();
-  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
-  document.querySelector('[data-tab="results"]').classList.add('active');
-  document.getElementById('tab-results').classList.add('active');
+  switchToTab('results');
+});
+
+document.getElementById('btn-compare').addEventListener('click', () => {
+  runComparison();
+  switchToTab('results');
 });
 
 document.getElementById('btn-invest-calc').addEventListener('click', calcInvestment);
